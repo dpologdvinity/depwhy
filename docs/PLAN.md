@@ -1,0 +1,503 @@
+# depwhy — Implementation Plan (v0.1)
+
+Read `docs/SPEC.md` first. It defines all behavior, and section references (§)
+below point there. Do the tasks in order. Each one ends with a passing check and
+one commit. Commit messages use Conventional Commits. Don't commit `CLAUDE.md`,
+`AGENTS.md`, `.claude/`, or `docs/superpowers/` (they are listed in `.git/info/exclude`).
+
+Before each commit, run:
+```sh
+gofmt -l .        # must print nothing
+go vet ./...
+go test ./...
+```
+
+---
+
+## Task 1: Scaffold
+
+Files: `go.mod`, `main.go`, `internal/cli/cli.go`, `LICENSE`, `.gitignore`
+
+1. `go mod init github.com/dpologdvinity/depwhy`, then set `go 1.23` in `go.mod`.
+2. `go get github.com/spf13/pflag@v1.0.10 go.yaml.in/yaml/v3@v3.0.5 github.com/BurntSushi/toml@v1.6.0`
+3. `main.go`:
+   ```go
+   package main
+
+   import (
+       "os"
+
+       "github.com/dpologdvinity/depwhy/internal/cli"
+   )
+
+   func main() { os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr)) }
+   ```
+4. In `cli.go`, `Run(args []string, stdout, stderr io.Writer) int` parses the flags from §3.1 with `pflag.NewFlagSet("depwhy", pflag.ContinueOnError)`. It handles `--help`/`--version` and validates mode combinations (§3). For now it returns 0 for a valid invocation. Set `var Version = "dev"`, which GoReleaser overrides with `-ldflags "-X github.com/dpologdvinity/depwhy/internal/cli.Version={{.Version}}"`.
+5. `.gitignore`: `/depwhy`, `/dist/`, `.env`.
+6. `LICENSE`: MIT, `Copyright (c) 2026 Kaitlyn Bassford`.
+
+Check: `go run . --version` prints `depwhy dev`. `go run . --remove --dupes` exits 2 with a usage message. `go run .` with no args exits 2.
+
+Commit: `chore: scaffold go module and cli entrypoint`
+
+## Task 2: Graph core
+
+Files: `internal/graph/graph.go`, `internal/graph/graph_test.go`
+
+Implement the §5.1 types and the `Builder`. `Build()` sorts nothing. It fills `In`
+from `Out` and returns an error `no root packages found` if there are no roots.
+Add `func (k Kind) String() string` returning `prod|dev|optional|peer`.
+
+Tests: node get-or-create dedupes by ID, edge dedupe works, In mirrors Out, and Build fails with no roots.
+
+Commit: `feat(graph): add graph model and builder`
+
+## Task 3: Fixtures
+
+Create the four fixture projects. All four encode the same logical graph so that
+golden outputs line up:
+
+```
+app (root)
+├── a@1.0.0   prod
+│   ├── c@1.0.0
+│   └── d@1.0.0
+└── b@1.0.0   dev
+    ├── c@2.0.0   (python: c@1.0.0, since one resolution can't hold two versions)
+    └── d@1.0.0
+```
+
+`testdata/projects/npm/package-lock.json`:
+```json
+{
+  "name": "app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "app",
+      "version": "1.0.0",
+      "dependencies": { "a": "^1.0.0" },
+      "devDependencies": { "b": "^1.0.0" }
+    },
+    "node_modules/a": {
+      "version": "1.0.0",
+      "dependencies": { "c": "^1.0.0", "d": "^1.0.0" }
+    },
+    "node_modules/b": {
+      "version": "1.0.0",
+      "dev": true,
+      "dependencies": { "c": "^2.0.0", "d": "^1.0.0" }
+    },
+    "node_modules/b/node_modules/c": { "version": "2.0.0", "dev": true },
+    "node_modules/c": { "version": "1.0.0" },
+    "node_modules/d": { "version": "1.0.0" }
+  }
+}
+```
+
+`testdata/projects/pnpm/pnpm-lock.yaml` (plus `testdata/projects/pnpm/package.json` containing `{"name":"app","version":"1.0.0"}`):
+```yaml
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      a:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      b:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  a@1.0.0:
+    resolution: {integrity: sha512-AAAA}
+
+  b@1.0.0:
+    resolution: {integrity: sha512-BBBB}
+
+  c@1.0.0:
+    resolution: {integrity: sha512-CCCC}
+
+  c@2.0.0:
+    resolution: {integrity: sha512-DDDD}
+
+  d@1.0.0:
+    resolution: {integrity: sha512-EEEE}
+
+snapshots:
+
+  a@1.0.0:
+    dependencies:
+      c: 1.0.0
+      d: 1.0.0
+
+  b@1.0.0:
+    dependencies:
+      c: 2.0.0
+      d: 1.0.0
+
+  c@1.0.0: {}
+
+  c@2.0.0: {}
+
+  d@1.0.0: {}
+```
+
+`testdata/projects/uv/uv.lock`:
+```toml
+version = 1
+revision = 2
+requires-python = ">=3.12"
+
+[[package]]
+name = "app"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "a" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "b" },
+]
+
+[[package]]
+name = "a"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "c" },
+    { name = "d" },
+]
+
+[[package]]
+name = "b"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "c" },
+    { name = "d" },
+]
+
+[[package]]
+name = "c"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "d"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+```
+
+`testdata/projects/cargo/Cargo.lock`:
+```toml
+# This file is automatically @generated by Cargo.
+# It is not intended for manual editing.
+version = 4
+
+[[package]]
+name = "a"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "c 1.0.0",
+ "d",
+]
+
+[[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "a",
+ "b",
+]
+
+[[package]]
+name = "b"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "c 2.0.0",
+ "d",
+]
+
+[[package]]
+name = "c"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "c"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "d"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+```
+(In cargo, `b` is a Prod edge because Cargo.lock has no dev info. This is expected; see §8.4.)
+
+Also add these edge-case fixtures, used only by parser tests:
+- `testdata/edge/npm-workspace/package-lock.json`: a root `""` with a workspace `packages/lib` (name `lib`), a `node_modules/lib` entry with `"link": true, "resolved": "packages/lib"`, a scoped package `node_modules/@x/y`, root → `lib` and `lib` → `@x/y`.
+- `testdata/edge/npm-v1/package-lock.json`: `{"lockfileVersion":1,"dependencies":{}}`.
+- `testdata/edge/pnpm-peers/pnpm-lock.yaml`: snapshot keys `react-dom@18.2.0(react@18.2.0)` and an alias ref `string-width-cjs: string-width@4.2.3`.
+- `testdata/edge/cycle/package-lock.json`: `a` → `b` → `a`.
+
+If `npm`, `pnpm`, `uv`, or `cargo` is available, you may also add one real generated lockfile per ecosystem under `testdata/real/` for smoke tests. Don't make the golden tests depend on them.
+
+Commit: `test: add lockfile fixtures`
+
+## Task 4: npm parser
+
+Files: `internal/lockfile/npm.go`, `internal/lockfile/npm_test.go`
+
+Implement §8.1 exactly. Decode into:
+```go
+type npmLock struct {
+    LockfileVersion int                  `json:"lockfileVersion"`
+    Packages        map[string]npmEntry  `json:"packages"`
+}
+type npmEntry struct {
+    Name                 string            `json:"name"`
+    Version              string            `json:"version"`
+    Link                 bool              `json:"link"`
+    Resolved             string            `json:"resolved"`
+    Dependencies         map[string]string `json:"dependencies"`
+    DevDependencies      map[string]string `json:"devDependencies"`
+    OptionalDependencies map[string]string `json:"optionalDependencies"`
+    PeerDependencies     map[string]string `json:"peerDependencies"`
+}
+```
+Go map iteration is random. Sort keys before creating nodes and edges so output is deterministic. Do this in every parser.
+
+Resolution helper (write it as a pure function and test it on its own):
+```go
+// npmResolve returns the packages-map key that `name` resolves to from entry key `from`.
+func npmResolve(pkgs map[string]npmEntry, from, name string) (string, bool)
+```
+Test cases: from `node_modules/b` with name `c` gives `node_modules/b/node_modules/c`. From `node_modules/a` with name `c` gives `node_modules/c`. From `""` with name `@x/y` gives `node_modules/@x/y`. From `node_modules/@x/y/node_modules/z` with `c` falls back to `node_modules/c`. A link entry is followed to its `resolved` key.
+
+Tests: the main fixture graph (nodes, roots, and edges with kinds), the workspace fixture, the v1 error message, and the cycle fixture parsing without hanging.
+
+Commit: `feat(lockfile): parse package-lock.json v2/v3`
+
+## Task 5: pnpm parser
+
+Files: `internal/lockfile/pnpm.go`, `internal/lockfile/pnpm_test.go`
+
+Implement §8.2. Decode `lockfileVersion` as a string (YAML may give `'9.0'`).
+Use `map[string]struct{ Specifier, Version string }` for importer deps and
+`map[string]string` for snapshot deps. Add a helper `pnpmSplitKey(key) (name, version string)` that strips parens and splits at the last `@` with index greater than 0. Test it with `@babel/core@7.24.0(@types/node@20.0.0)`.
+
+Tests: the main fixture, the peers/alias fixture, the version 6 error, and a `link:` ref to a second importer.
+
+Commit: `feat(lockfile): parse pnpm-lock.yaml v9`
+
+## Task 6: uv parser
+
+Files: `internal/lockfile/uv.go`, `internal/lockfile/uv_test.go`
+
+Implement §8.3. Decode with `toml.Decode` into:
+```go
+type uvLock struct {
+    Version  int         `toml:"version"`
+    Manifest struct{ Members []string `toml:"members"` } `toml:"manifest"`
+    Package  []uvPackage `toml:"package"`
+}
+type uvPackage struct {
+    Name     string                  `toml:"name"`
+    Version  string                  `toml:"version"`
+    Source   map[string]string       `toml:"source"`
+    Deps     []uvDep                 `toml:"dependencies"`
+    Optional map[string][]uvDep      `toml:"optional-dependencies"`
+    Dev      map[string][]uvDep      `toml:"dev-dependencies"`
+}
+type uvDep struct {
+    Name    string            `toml:"name"`
+    Version string            `toml:"version"`
+    Source  map[string]string `toml:"source"`
+}
+```
+
+Tests: the main fixture, a two-member workspace using `[manifest] members`, and a package name appearing twice with different versions that resolves through `version`.
+
+Commit: `feat(lockfile): parse uv.lock`
+
+## Task 7: cargo parser
+
+Files: `internal/lockfile/cargo.go`, `internal/lockfile/cargo_test.go`
+
+Implement §8.4. Parse dependency strings with `strings.SplitN(s, " ", 3)` and trim the parens around the source.
+
+Tests: the main fixture, an ambiguous name without a version (warns and picks the first), and a missing `version` key.
+
+Commit: `feat(lockfile): parse Cargo.lock`
+
+## Task 8: Detection and dispatcher
+
+Files: `internal/lockfile/load.go`, `internal/lockfile/load_test.go`
+
+```go
+type Found struct{ Path, Ecosystem, Format string }
+func Detect(dir string, ecosystem string) ([]Found, []string /*warnings*/, error)
+func FromPaths(paths []string, ecosystem string) ([]Found, error)
+func Load(f Found) (*graph.Graph, []string, error)
+```
+Implement §4 rules 1–5. Test with `t.TempDir()` and empty files (Detect only stats files, it doesn't parse them).
+
+Commit: `feat(lockfile): detect lockfiles and dispatch parsers`
+
+## Task 9: Matching and suggestions
+
+Files: `internal/graph/match.go`, `internal/graph/match_test.go`
+
+```go
+func SplitQuery(q string) (name, version string)
+func Normalize(ecosystem, name string) string
+func (g *Graph) Find(name, version string) []int   // non-root nodes only, sorted by Version
+func Suggest(gs []*Graph, name string) []string     // §6.4
+```
+Implement Levenshtein yourself (about 20 lines, with two rows). Don't add a dependency for it.
+
+Tests: scoped split, PEP 503 cases (`Foo.Bar_baz` gives `foo-bar-baz`), cargo `_`/`-` equivalence, and suggestion ordering.
+
+Commit: `feat(graph): add query matching and suggestions`
+
+## Task 10: Why
+
+Files: `internal/graph/why.go`, `internal/graph/why_test.go`
+
+```go
+type WhyOpts struct{ Depth int; All bool; Prod bool }
+type TreeNode struct {
+    Node     int
+    Kind     Kind      // kind of edge from this node to its parent-in-tree (the dependency it requires); for root leaves, the root→direct kind
+    Marker   string    // "", "(*)", "(cycle)", "…"
+    Children []*TreeNode
+}
+type Lead struct{ Root, Direct int; Kind Kind }
+type WhyResult struct {
+    Target     int
+    Tree       *TreeNode
+    Paths      [][]PathStep // root-first, capped per §6.1 unless All
+    Truncated  bool
+    MorePaths  string      // "", "37", "10000+"
+    Leads      []Lead
+    Direct     bool
+    DevOnly    bool
+}
+type PathStep struct{ Node int; Kind Kind }
+func (g *Graph) DevOnly() []bool   // §5.3, cache on Graph after the first call
+func (g *Graph) Why(t int, o WhyOpts) WhyResult
+```
+Implement §6.1 and §5.3. Write paths and leads with a DFS over `In` that uses an on-path set.
+
+Tests on hand-built graphs: a diamond (two paths), a cycle, a direct target, depth truncation, the path cap with 12 parallel paths (10 shown, `MorePaths == "2"`), and dev-only detection.
+
+Commit: `feat(graph): explain why a package is installed`
+
+## Task 11: Remove and Dupes
+
+Files: `internal/graph/remove.go`, `internal/graph/dupes.go`, plus tests
+
+```go
+type Kept struct{ Node, Via int }
+type RemoveResult struct {
+    Target      int
+    NotDirect   bool
+    RequiredBy  []Lead
+    Freed       []int
+    Kept        []Kept
+    StillNeeded bool
+    StillVia    int
+    Kind        Kind   // kind of root→target edge
+    Root        int
+}
+func (g *Graph) Remove(t int, prod bool) RemoveResult
+
+type DupeVersion struct{ Node int; Leads []Lead }
+type Dupe struct{ Name string; Versions []DupeVersion }
+func (g *Graph) Dupes(prod bool) []Dupe
+```
+Implement §6.2 and §6.3.
+
+Tests on the npm fixture graph (load it with the parser): `Remove(a)` frees `a, c@1.0.0` and keeps `d` via `b`. `Remove(c@1.0.0)` is NotDirect with RequiredBy `a`. `Dupes` returns `c` with two versions. Also test with a target that stays (also required by another direct dependency's subtree).
+
+Commit: `feat(graph): add removal impact and duplicate detection`
+
+## Task 12: Renderers
+
+Files: `internal/render/text.go`, `internal/render/json.go`, `internal/render/color.go`, plus tests
+
+```go
+type Style struct{ Color bool }
+func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style)
+func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style)
+func DupesText(w io.Writer, g *graph.Graph, d []graph.Dupe, s Style)
+// JSON: build the structs from §7.3 and encode with SetIndent("", "  ")
+```
+Match the §7.1 and §7.2 text exactly. `color.go` has `func Enabled(f *os.File, noColor bool) bool` per §7.4, and the ANSI helpers return their input unchanged when Color is false.
+
+Tests: render the npm fixture results and compare against inline expected strings.
+
+Commit: `feat(render): add text and json output`
+
+## Task 13: Wire the CLI and golden tests
+
+Files: `internal/cli/cli.go`, `internal/cli/cli_test.go`, `testdata/golden/*`
+
+Flow in `Run`:
+1. Parse flags and validate.
+2. `Detect` or `FromPaths`, then `Load` each. Print warnings to stderr and exit 2 on errors.
+3. Dispatch the mode. For why and remove, gather the matches across graphs (§6.1 ordering). If there are none, print the suggestions and exit 1.
+4. Render text or JSON.
+
+Golden harness:
+```go
+var update = flag.Bool("update", false, "rewrite golden files")
+```
+Cases, for each fixture dir in `{npm, pnpm, uv, cargo}`: `[c]`, `[d]`, `[c@1.0.0]`, `[--remove a]`, `[--remove c]`, `[--dupes]`, `[--prod c]`, `[--json d]`, `[zzz]`, `[--depth 1 d]`. Golden file name: `<fixture>__<args joined by _ with non-alnum stripped>.txt`. Content: stdout, then `\n--- stderr\n`, stderr, then `\n--- exit=<code>\n`. Always run with `-C testdata/projects/<fixture>` and `--no-color`. Paths in the output use the base name only, so goldens are portable.
+
+Generate the goldens with `-update`, then **review every golden by hand against the SPEC** before committing. The goldens are the spec in executable form, so a wrong golden is a bug.
+
+Commit: `feat(cli): wire modes and add golden tests`
+
+## Task 14: Performance check
+
+File: `internal/graph/perf_test.go`
+
+Build a synthetic graph with 3,000 nodes, a fan-out of 5, and random edges from a fixed seed (`rand.New(rand.NewPCG(1, 2))`), keeping it a DAG plus a few back-edges. Run `Why` on a deep leaf and `Remove` on a direct dependency. Fail if each takes 200 ms or more. Skip when `testing.Short()`.
+
+Commit: `test(graph): add performance guard`
+
+## Task 15: README, CI, release
+
+Files: `README.md`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.goreleaser.yaml`
+
+- README sections: a one-line pitch, a demo block (paste the npm golden output for `depwhy d` and `depwhy --remove a`), install (`go install github.com/dpologdvinity/depwhy@latest`, release binaries, Homebrew later), usage table (from §3.1), supported lockfiles with their versions, notes and limitations (§8.4, the 10-path cap, `marker` ignored), JSON schema pointer, and license.
+- `ci.yml`: on push and PR, run on `ubuntu-latest` and `macos-latest` with `actions/setup-go` (`go-version: stable`), then `gofmt -l .` (fail if output), `go vet ./...`, and `go test ./...`.
+- `release.yml`: on tag `v*`, run `goreleaser/goreleaser-action` with `args: release --clean` and `GITHUB_TOKEN`.
+- `.goreleaser.yaml` (version 2): build `main.go` with `CGO_ENABLED=0`, for goos `linux, darwin, windows` and goarch `amd64, arm64`, with ldflags `-s -w -X github.com/dpologdvinity/depwhy/internal/cli.Version={{.Version}}`. Archives are tar.gz (zip for windows), with checksums and a changelog from commits.
+
+Check: `goreleaser check` if installed, and `goreleaser build --snapshot --clean` locally.
+
+Commit: `docs: add readme` then `ci: add test and release workflows`
+
+## Task 16: Manual verification and release
+
+1. Run `depwhy` against one real project per ecosystem (any local project, or a freshly generated one: `npm init -y && npm i express`, `uv init && uv add requests`, `cargo new x && cargo add serde`). Check that the output makes sense against `npm ls <pkg>`, `uv tree --invert --package <pkg>`, and `cargo tree -i <pkg>`.
+2. Record any discrepancy as a test plus a fix before release.
+3. Tag `v0.1.0` **only when the maintainer asks**. Don't push or tag without explicit approval.
