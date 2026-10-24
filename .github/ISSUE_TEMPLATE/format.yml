@@ -1,0 +1,14 @@
+name: New lockfile format
+description: Ask for support for another lockfile
+labels: [enhancement]
+body:
+  - type: input
+    id: format
+    attributes:
+      label: Lockfile (name and tool version)
+      placeholder: yarn.lock (Berry 4)
+    validations: {required: true}
+  - type: textarea
+    id: sample
+    attributes:
+      label: Small sample lockfile
