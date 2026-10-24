@@ -44,8 +44,14 @@ With Go 1.23 or newer:
 go install github.com/dpologdvinity/depwhy@latest
 ```
 
+On macOS with Homebrew (available from the first release after v0.1.0):
+
+```sh
+brew install dpologdvinity/tap/depwhy
+```
+
 Or download a binary for Linux, macOS, or Windows (amd64 and arm64) from the
-[releases page](https://github.com/dpologdvinity/depwhy/releases). Homebrew is planned.
+[releases page](https://github.com/dpologdvinity/depwhy/releases).
 
 Check the install with `depwhy --version`.
 

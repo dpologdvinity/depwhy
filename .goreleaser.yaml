@@ -31,3 +31,24 @@ changelog:
       - "^docs:"
       - "^test:"
       - "^chore\\(deps\\)"
+
+# Publishes Casks/depwhy.rb to the shared tap (dpologdvinity/homebrew-tap) on
+# release. The tap holds packages for other projects too; GoReleaser only touches
+# its own file. The token is the repository secret HOMEBREW_TAP_GITHUB_TOKEN.
+# (A cask is how Homebrew expects pre-built binaries; "brews" is deprecated.)
+homebrew_casks:
+  - name: depwhy
+    repository:
+      owner: dpologdvinity
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/dpologdvinity/depwhy
+    description: Explains why a package is in your dependency tree, from the lockfile, offline
+    skip_upload: auto # pre-releases such as v0.2.0-rc.1 do not update the tap
+    hooks:
+      post:
+        # The binary is not notarized; drop the macOS quarantine flag after install.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/depwhy"]
+          end
