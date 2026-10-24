@@ -294,7 +294,9 @@ dependencies ──┬──▶ lint ──────────┐
 first and only then runs GoReleaser, which builds `CGO_ENABLED=0` binaries for
 Linux, macOS and Windows on amd64 and arm64, sets `internal/cli.Version` through
 `-ldflags`, and publishes archives with checksums and a changelog built from
-Conventional Commit messages. Tags with a suffix such as `-rc.1` are published as
+Conventional Commit messages. It also commits a Homebrew cask to
+`dpologdvinity/homebrew-tap` (a tap shared with other projects) using the
+`HOMEBREW_TAP_GITHUB_TOKEN` secret; pre-release tags skip that step. Tags with a suffix such as `-rc.1` are published as
 pre-releases.
 
 Dependabot keeps Go modules and the pinned Actions up to date.
