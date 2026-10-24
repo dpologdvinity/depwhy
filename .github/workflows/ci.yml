@@ -53,6 +53,10 @@ jobs:
           cache: true
       - name: gofmt
         run: test -z "$(gofmt -l .)"
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
         with:
@@ -152,6 +156,19 @@ jobs:
         with:
           version: "~> v2"
           args: release --snapshot --clean
+      # Prove the apt repository really works before a release depends on it: build
+      # it from the snapshot .deb files with a throwaway key, then install from it
+      # in a clean Debian container (the script also checks that a tampered index
+      # is rejected).
+      - name: build and test the apt repository
+        run: |
+          sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils
+          export GNUPGHOME="$RUNNER_TEMP/gnupg" && mkdir -m 700 "$GNUPGHOME"
+          gpg --batch --passphrase '' --quick-generate-key "depwhy ci <ci@example.invalid>" rsa3072 sign never
+          fingerprint=$(gpg --list-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
+          mkdir "$RUNNER_TEMP/debs" && cp dist/*.deb "$RUNNER_TEMP/debs/"
+          scripts/build-apt-repo.sh "$RUNNER_TEMP/debs" "$RUNNER_TEMP/site" "$fingerprint"
+          scripts/test-apt-repo.sh "$RUNNER_TEMP/site"
       - name: upload snapshot binaries
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
