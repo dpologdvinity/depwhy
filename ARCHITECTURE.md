@@ -272,15 +272,32 @@ files.
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs on every push and pull request: `gofmt`, `go vet`
-and `go test -race` on Linux, macOS and Windows; `govulncheck`; and a GoReleaser
-snapshot build, which catches release-config mistakes before a tag does.
-Dependabot keeps Go modules and Actions up to date.
+`.github/workflows/ci.yml` runs on every pull request into `master` and every push
+to it. Every action is pinned to a commit SHA, and a newer push cancels the run it
+supersedes. The jobs form a fail-fast pipeline:
+
+```
+dependencies ──┬──▶ lint ──────────┐
+               ├──▶ test (matrix) ─┼──▶ build artifacts
+               └──▶ govulncheck ───┘
+```
+
+| Job | What it enforces |
+|---|---|
+| dependencies | `go mod download`, `go mod verify`, and that `go.mod`/`go.sum` are tidy. Warms the module cache. |
+| lint | `gofmt`, `go vet`, `golangci-lint` (config in `.golangci.yml`). |
+| test | `go test -race` on Linux, macOS and Windows with the minimum Go version in `go.mod`, plus one Linux leg on the newest Go. Total coverage is reported to the job summary, uploaded as an artifact, and must be at least 90%. |
+| govulncheck | Known vulnerabilities in dependencies and reachable standard-library code. |
+| build artifacts | A GoReleaser snapshot build for every OS/arch target, uploaded as an artifact. Runs only after the jobs above pass, and catches release-config mistakes before a tag does. |
 
 `.github/workflows/release.yml` runs on a `v*` tag. It runs vet and the race tests
 first and only then runs GoReleaser, which builds `CGO_ENABLED=0` binaries for
 Linux, macOS and Windows on amd64 and arm64, sets `internal/cli.Version` through
-`-ldflags`, and publishes archives with checksums.
+`-ldflags`, and publishes archives with checksums and a changelog built from
+Conventional Commit messages. Tags with a suffix such as `-rc.1` are published as
+pre-releases.
+
+Dependabot keeps Go modules and the pinned Actions up to date.
 
 ## Design decisions
 

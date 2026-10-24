@@ -345,3 +345,37 @@ func TestEnabled(t *testing.T) {
 		t.Error("regular file is not a terminal")
 	}
 }
+
+// TestVersionlessNodesPrintTheirName checks that a package with no version is
+// printed as just its name, without a trailing "@".
+func TestVersionlessNodesPrintTheirName(t *testing.T) {
+	b := graph.NewBuilder("npm", "package-lock.json")
+	app := b.Root("app", "")
+	x := b.Node("x", "")
+	b.Edge(app, x, graph.Prod)
+	g, _ := b.Build()
+	var buf bytes.Buffer
+	WhyText(&buf, g, g.Why(x, graph.WhyOpts{}), Style{})
+	want := "x  npm · package-lock.json\n└── app (root, prod)\ndirect dependency of app (prod)\n"
+	if buf.String() != want {
+		t.Fatalf("got:\n%s", buf.String())
+	}
+}
+
+// TestRemovePluralization checks the singular form for a single freed package
+// and the "also a direct dependency" wording.
+func TestRemovePluralization(t *testing.T) {
+	b := graph.NewBuilder("npm", "package-lock.json")
+	app := b.Root("app", "")
+	a, d := b.Node("a", "1"), b.Node("d", "1")
+	b.Edge(app, a, graph.Prod)
+	b.Edge(app, d, graph.Prod)
+	b.Edge(a, d, graph.Prod)
+	g, _ := b.Build()
+	var buf bytes.Buffer
+	RemoveText(&buf, g, g.Remove(a, false), Style{})
+	want := "removing a@1 (direct, prod) from app  npm · package-lock.json\nwould remove 1 package:\n  a@1\nstill needed by others (1):\n  d@1  (also a direct dependency)\n"
+	if buf.String() != want {
+		t.Fatalf("got:\n%s", buf.String())
+	}
+}

@@ -55,19 +55,28 @@ var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 // dropped, so lockfiles can be stored as uv.lock.fixture and Cargo.lock.fixture.
 func stageFixture(t *testing.T, src string) string {
 	t.Helper()
+	return stageFixtures(t, src)
+}
+
+// stageFixtures is stageFixture for several fixture dirs merged into one temp
+// dir, which makes a polyglot project.
+func stageFixtures(t *testing.T, srcs ...string) string {
+	t.Helper()
 	dst := t.TempDir()
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range entries {
-		data, err := os.ReadFile(filepath.Join(src, e.Name()))
+	for _, src := range srcs {
+		entries, err := os.ReadDir(src)
 		if err != nil {
 			t.Fatal(err)
 		}
-		name := strings.TrimSuffix(e.Name(), ".fixture")
-		if err := os.WriteFile(filepath.Join(dst, name), data, 0o644); err != nil {
-			t.Fatal(err)
+		for _, e := range entries {
+			data, err := os.ReadFile(filepath.Join(src, e.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := strings.TrimSuffix(e.Name(), ".fixture")
+			if err := os.WriteFile(filepath.Join(dst, name), data, 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return dst
@@ -136,5 +145,157 @@ func TestResolveVersion(t *testing.T) {
 		if got := resolveVersion(c.ldflags, c.info); got != c.want {
 			t.Errorf("resolveVersion(%q, %v) = %q, want %q", c.ldflags, c.info, got, c.want)
 		}
+	}
+}
+
+// project returns the path of a fixture project under testdata/projects.
+func project(name string) string {
+	return filepath.Join("..", "..", "testdata", "projects", name)
+}
+
+// TestHelp checks that --help prints usage and the cargo/marker notes and exits 0.
+func TestHelp(t *testing.T) {
+	code, out, _ := run("--help")
+	if code != 0 || !strings.Contains(out, "usage:") || !strings.Contains(out, "notes:") || !strings.Contains(out, "--remove") {
+		t.Fatalf("got %d %q", code, out)
+	}
+}
+
+// TestNoLockfile checks exit 2 and the message when a directory has no lockfile.
+func TestNoLockfile(t *testing.T) {
+	code, _, errs := run("-C", t.TempDir(), "x")
+	if code != 2 || !strings.Contains(errs, "depwhy: no supported lockfile in") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+}
+
+// TestUnparsableLockfile checks that a broken lockfile is fatal (exit 2) and the
+// error names the file.
+func TestUnparsableLockfile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errs := run("-C", dir, "x")
+	if code != 2 || !strings.Contains(errs, "parse ") || !strings.Contains(errs, "package-lock.json") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+}
+
+// TestUnreadableExplicitLockfile checks that a missing -l file exits 2.
+func TestUnreadableExplicitLockfile(t *testing.T) {
+	code, _, errs := run("-l", filepath.Join(t.TempDir(), "uv.lock"), "x")
+	if code != 2 || !strings.Contains(errs, "depwhy:") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+	if code, _, errs = run("-l", "whatever/yarn.lock", "x"); code != 2 || !strings.Contains(errs, "unrecognized lockfile name: yarn.lock") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+}
+
+// TestExplicitLockfile checks that -l bypasses detection and the working directory.
+func TestExplicitLockfile(t *testing.T) {
+	dir := stageFixture(t, project("npm"))
+	code, out, _ := run("-l", filepath.Join(dir, "package-lock.json"), "a")
+	if code != 0 || !strings.Contains(out, "direct dependency of app (prod)") {
+		t.Fatalf("got %d %q", code, out)
+	}
+}
+
+// TestPolyglotLoadsEveryEcosystem checks that a directory with several lockfiles
+// is searched in full, in load order, and that -e narrows it.
+func TestPolyglotLoadsEveryEcosystem(t *testing.T) {
+	dir := stageFixtures(t, project("npm"), project("uv"), project("cargo"))
+	code, out, _ := run("-C", dir, "--no-color", "d")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	i, j, k := strings.Index(out, "npm · package-lock.json"), strings.Index(out, "python · uv.lock"), strings.Index(out, "cargo · Cargo.lock")
+	if i < 0 || j < i || k < j {
+		t.Fatalf("want npm, python, cargo in order:\n%s", out)
+	}
+	_, out, _ = run("-C", dir, "--no-color", "-e", "cargo", "d")
+	if strings.Contains(out, "npm ·") || !strings.Contains(out, "cargo · Cargo.lock") {
+		t.Fatalf("ecosystem filter failed:\n%s", out)
+	}
+	if code, _, _ = run("-C", dir, "-e", "python", "--dupes"); code != 0 {
+		t.Fatalf("dupes exit %d", code)
+	}
+}
+
+// TestPnpmPreferredWithWarning checks the pnpm-over-npm rule and that warnings go
+// to stderr without changing the exit code.
+func TestPnpmPreferredWithWarning(t *testing.T) {
+	dir := stageFixtures(t, project("npm"), project("pnpm"))
+	code, out, errs := run("-C", dir, "--no-color", "a")
+	if code != 0 || !strings.Contains(out, "pnpm-lock.yaml") || strings.Contains(out, "package-lock.json") {
+		t.Fatalf("got %d %q", code, out)
+	}
+	if !strings.Contains(errs, "depwhy: warning: both pnpm-lock.yaml and package-lock.json found; using pnpm-lock.yaml") {
+		t.Fatalf("stderr = %q", errs)
+	}
+}
+
+// TestParserWarningsArePrefixedWithTheFile checks that a parser warning names its
+// lockfile, so output stays clear when several are loaded.
+func TestParserWarningsArePrefixedWithTheFile(t *testing.T) {
+	dir := t.TempDir()
+	lock := `{"lockfileVersion":3,"packages":{"":{"dependencies":{"gone":"*","a":"*"}},"node_modules/a":{"version":"1.0.0"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(lock), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errs := run("-C", dir, "a")
+	if code != 0 || !strings.Contains(errs, "depwhy: warning: package-lock.json: unresolved dependency gone of .") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+}
+
+// TestNotFoundSuggests checks exit 1, the message, and the did-you-mean line.
+func TestNotFoundSuggests(t *testing.T) {
+	code, out, errs := run("-C", project("npm"), "cc")
+	if code != 1 || out != "" || !strings.Contains(errs, "depwhy: cc not found in package-lock.json") || !strings.Contains(errs, "did you mean: c, a, b") {
+		t.Fatalf("got %d %q %q", code, out, errs)
+	}
+}
+
+// TestNotFoundJSON checks that a not-found run in JSON mode still emits a
+// document, with suggestions, and exits 1.
+func TestNotFoundJSON(t *testing.T) {
+	code, out, _ := run("-C", project("npm"), "--json", "cc")
+	if code != 1 || !strings.Contains(out, `"results": []`) || !strings.Contains(out, `"suggestions": [`) {
+		t.Fatalf("got %d %q", code, out)
+	}
+}
+
+// TestProdHidesDevOnlyTarget checks that --prod treats a dev-only package as not
+// found and says why.
+func TestProdHidesDevOnlyTarget(t *testing.T) {
+	code, _, errs := run("-C", project("npm"), "--prod", "b")
+	if code != 1 || !strings.Contains(errs, "(found only via dev dependencies; drop --prod)") {
+		t.Fatalf("got %d %q", code, errs)
+	}
+	if code, _, _ = run("-C", project("npm"), "--prod", "--remove", "b"); code != 1 {
+		t.Fatalf("--remove exit %d", code)
+	}
+}
+
+// TestJSONModes checks that remove and dupes JSON documents are produced.
+func TestJSONModes(t *testing.T) {
+	_, out, _ := run("-C", project("npm"), "--json", "--remove", "a")
+	if !strings.Contains(out, `"mode": "remove"`) || !strings.Contains(out, `"freed"`) {
+		t.Fatalf("remove: %s", out)
+	}
+	_, out, _ = run("-C", project("npm"), "--json", "--dupes")
+	if !strings.Contains(out, `"mode": "dupes"`) || !strings.Contains(out, `"query": null`) {
+		t.Fatalf("dupes: %s", out)
+	}
+}
+
+// TestRepeatedFlagsAndQueryAfterFlags checks that flags may follow the package
+// argument (GNU style).
+func TestRepeatedFlagsAndQueryAfterFlags(t *testing.T) {
+	code, out, _ := run("d", "-C", project("npm"), "--no-color", "--depth", "1")
+	if code != 0 || !strings.Contains(out, "…") {
+		t.Fatalf("got %d %q", code, out)
 	}
 }

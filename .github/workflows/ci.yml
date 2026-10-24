@@ -1,60 +1,157 @@
 name: ci
 
+# Runs on every pull request into master and on every push to master.
 on:
   push:
+    branches: [master]
   pull_request:
+    branches: [master]
+
+# A newer push to the same ref cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  # Minimum total statement coverage; the test job fails below it.
+  COVERAGE_MIN: "90"
+
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # 1. Environment and dependencies. Later jobs wait for this one, so a broken
+  #    go.mod fails fast instead of failing every job separately.
+  deps:
+    name: dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: stable
+          go-version-file: go.mod
+          cache: true
+      - run: go mod download
+      - run: go mod verify
+      - name: go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  # 2. Format, static analysis, lint.
+  lint:
+    name: lint
+    needs: deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache: true
       - name: gofmt
-        shell: bash
         run: test -z "$(gofmt -l .)"
       - run: go vet ./...
-      - run: go test -race ./...
+      - uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8
+        with:
+          version: v2.15.0
 
-  lint:
-    runs-on: ubuntu-latest
+  # 3. Tests with the race detector on every supported OS. Coverage is measured
+  #    on Linux and published to the job summary and as an artifact.
+  #    One extra Linux leg uses the newest Go release; the others use the Go
+  #    version in go.mod, which is the minimum depwhy supports.
+  test:
+    name: test (${{ matrix.os }}, go ${{ matrix.go }})
+    needs: deps
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: [oldest]
+        include:
+          - os: ubuntu-latest
+            go: stable
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: stable
-      - uses: golangci/golangci-lint-action@v8
+          go-version: ${{ matrix.go == 'stable' && 'stable' || '' }}
+          go-version-file: ${{ matrix.go == 'stable' && '' || 'go.mod' }}
+          cache: true
+      - name: go test
+        shell: bash
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: coverage report and gate
+        if: matrix.os == 'ubuntu-latest' && matrix.go == 'oldest'
+        shell: bash
+        run: |
+          go tool cover -func=coverage.out > coverage.txt
+          total=$(awk '/^total:/ {gsub("%","",$3); print $3}' coverage.txt)
+          {
+            echo "### Coverage"
+            echo
+            echo "Total statement coverage: **${total}%** (minimum ${COVERAGE_MIN}%)"
+            echo
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          awk -v t="$total" -v m="$COVERAGE_MIN" 'BEGIN { exit !(t+0 >= m+0) }' \
+            || { echo "coverage ${total}% is below ${COVERAGE_MIN}%"; exit 1; }
+      - name: upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.go == 'oldest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          version: latest
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
 
+  # Known-vulnerability scan of the dependencies and of the standard library
+  # functions the code reaches.
   vuln:
+    name: govulncheck
+    needs: deps
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: stable
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+          go-version-file: go.mod
+          cache: true
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
-  snapshot:
+  # 4. Build every release artifact (all OS/arch targets) without publishing, so
+  #    release-config mistakes surface here and not on a tag. Runs only after
+  #    lint, tests and the vulnerability scan pass.
+  build:
+    name: build artifacts
+    needs: [lint, test, vuln]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: stable
-      - uses: goreleaser/goreleaser-action@v7
+          go-version-file: go.mod
+          cache: true
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
           version: "~> v2"
           args: release --snapshot --clean
+      - name: upload snapshot binaries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: snapshot-binaries
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          retention-days: 7

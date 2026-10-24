@@ -165,3 +165,19 @@ func TestParseNPMUnresolvedAndKinds(t *testing.T) {
 		t.Fatalf("edges = %v", got)
 	}
 }
+
+// TestParseNPMAliasedNameAndInvalidJSON checks that a "name" field overrides the
+// path-derived name (npm aliases) and that malformed JSON is a wrapped error.
+func TestParseNPMAliasedNameAndInvalidJSON(t *testing.T) {
+	data := []byte(`{"lockfileVersion":3,"packages":{"":{"name":"p","dependencies":{"alias":"*"}},"node_modules/alias":{"name":"real","version":"2.0.0"}}}`)
+	g, _, err := ParseNPM("p", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := edgeStrings(g); !reflect.DeepEqual(got, []string{"root:p -> real@2.0.0 prod"}) {
+		t.Fatalf("edges = %v", got)
+	}
+	if _, _, err := ParseNPM("bad.json", []byte("{")); err == nil || !strings.HasPrefix(err.Error(), "parse bad.json: ") {
+		t.Fatalf("err = %v", err)
+	}
+}
