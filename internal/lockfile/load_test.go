@@ -108,3 +108,14 @@ func TestLoadDispatches(t *testing.T) {
 		t.Fatal("want read error")
 	}
 }
+
+// TestLoadUnknownFormat checks the error for a format id that has no parser.
+func TestLoadUnknownFormat(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "x")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Load(Found{Path: p, Format: "yarn"}); err == nil {
+		t.Fatal("want error")
+	}
+}
