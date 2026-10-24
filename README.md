@@ -1,9 +1,13 @@
 # depwhy
 
 [![ci](https://github.com/dpologdvinity/depwhy/actions/workflows/ci.yml/badge.svg)](https://github.com/dpologdvinity/depwhy/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/dpologdvinity/depwhy)](https://github.com/dpologdvinity/depwhy/releases/latest)
+[![Go version](https://img.shields.io/github/go-mod/go-version/dpologdvinity/depwhy)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dpologdvinity/depwhy)](https://goreportcard.com/report/github.com/dpologdvinity/depwhy)
+[![license: MIT](https://img.shields.io/github/license/dpologdvinity/depwhy)](LICENSE)
 
 **Why is this package in my dependency tree?** `depwhy` reads your lockfile and
-tells you, offline, with one interface for npm, pnpm, Python (uv), and Cargo.
+tells you, offline by default, with one interface for npm, pnpm, Python (uv), and Cargo.
 
 ```console
 $ depwhy d
@@ -45,7 +49,7 @@ With Go 1.26 or newer:
 go install github.com/dpologdvinity/depwhy@latest
 ```
 
-On macOS with Homebrew (available from the first release after v0.1.0):
+With Homebrew on macOS or Linux:
 
 ```sh
 brew install dpologdvinity/tap/depwhy
@@ -219,9 +223,9 @@ lockfile ──parse──▶ graph ──query──▶ result ──render─�
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How depwhy is built: packages, the graph model, algorithms, testing, CI. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Local workflow, checks, commit and PR conventions. |
-| [docs/SPEC.md](docs/SPEC.md) | The behavior contract for v0.1. |
-| [docs/PLAN.md](docs/PLAN.md) | The implementation plan for v0.1. |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | What comes after v0.1. |
+| [docs/SPEC.md](docs/SPEC.md) | The behavior contract (v0.1, plus online mode in §12). |
+| [docs/PLAN.md](docs/PLAN.md) | The implementation plans for v0.1 and v0.2. |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What comes next. |
 
 ## Development
 
