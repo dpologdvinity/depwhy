@@ -148,3 +148,11 @@ func TestDupesSortByCountThenName(t *testing.T) {
 		t.Fatalf("order = %v", names)
 	}
 }
+
+func TestRemoveKeptStopsAtWorkspaceRoots(t *testing.T) {
+	g := testGraph(t, []string{"app", "lib"}, "app>a", "a>lib", "lib>x")
+	r := g.Remove(g.id("a"), false)
+	if len(r.Kept) != 0 {
+		t.Fatalf("kept = %v", keptStrings(g, r.Kept))
+	}
+}

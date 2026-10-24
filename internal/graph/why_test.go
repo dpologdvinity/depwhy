@@ -224,3 +224,15 @@ func TestDevOnlyAndProd(t *testing.T) {
 		t.Fatalf("leads = %+v", r.Leads)
 	}
 }
+
+func TestWhyMorePathsIgnoresDepthHiddenBranches(t *testing.T) {
+	var edges []string
+	for i := 1; i <= 12; i++ {
+		edges = append(edges, fmt.Sprintf("app>m%02d", i), fmt.Sprintf("m%02d>t", i))
+	}
+	g := testGraph(t, []string{"app"}, edges...)
+	r := g.Why(g.id("t"), WhyOpts{Depth: 1})
+	if r.MorePaths != "" {
+		t.Fatalf("MorePaths = %q; depth hides branches, the cap hid none", r.MorePaths)
+	}
+}

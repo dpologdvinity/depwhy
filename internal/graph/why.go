@@ -188,11 +188,14 @@ func (g *Graph) Why(t int, o WhyOpts) WhyResult {
 	if o.All {
 		limit = 0
 	}
-	res.Tree, _ = g.buildTree(t, o, res.Direct, limit)
+	var shown int
+	res.Tree, shown = g.buildTree(t, o, res.Direct, limit)
 	if limit > 0 {
 		// Count the leaves the cap hid; the tree is deduplicated, so this is linear.
-		if _, total := g.buildTree(t, WhyOpts{Prod: o.Prod}, res.Direct, 0); total > limit {
-			res.MorePaths = strconv.Itoa(total - limit)
+		uncapped := o
+		uncapped.All = true
+		if _, total := g.buildTree(t, uncapped, res.Direct, 0); total > shown {
+			res.MorePaths = strconv.Itoa(total - shown)
 		}
 	}
 	res.Paths, res.Truncated = g.paths(t, o, res.Direct, limit)
