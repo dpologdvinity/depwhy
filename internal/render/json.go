@@ -8,12 +8,13 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
-// Query echoes the user's query; a missing version encodes as null.
+// Query echoes the user's query back in the JSON output.
 type Query struct {
 	Name    string
 	Version string
 }
 
+// MarshalJSON encodes an empty Version as null rather than "".
 func (q Query) MarshalJSON() ([]byte, error) {
 	var v *string
 	if q.Version != "" {
@@ -25,7 +26,8 @@ func (q Query) MarshalJSON() ([]byte, error) {
 	}{q.Name, v})
 }
 
-// Doc is the top-level JSON document (SPEC §7.3).
+// Doc is the top-level JSON document (SPEC §7.3). The schema field is a
+// stability promise from 1.0: any breaking change bumps it.
 type Doc struct {
 	Schema      int       `json:"schema"`
 	Mode        string    `json:"mode"`
@@ -35,10 +37,13 @@ type Doc struct {
 	Warnings    []string  `json:"warnings"`
 }
 
+// NewDoc starts a document for the given mode ("why", "remove" or "dupes").
+// q is nil for dupes, which encodes as null.
 func NewDoc(mode string, q *Query) *Doc {
 	return &Doc{Schema: 1, Mode: mode, Query: q, Results: []any{}, Warnings: []string{}}
 }
 
+// Add appends one result built by WhyJSON, RemoveJSON or DupesJSON.
 func (d *Doc) Add(result any) { d.Results = append(d.Results, result) }
 
 // SetSuggestions marks the document as a not-found result.
@@ -49,17 +54,20 @@ func (d *Doc) SetSuggestions(s []string) {
 	d.Suggestions = &s
 }
 
+// Encode writes the document as indented JSON followed by a newline.
 func (d *Doc) Encode(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(d)
 }
 
+// pkgJSON is a package name and version.
 type pkgJSON struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 }
 
+// leadJSON is a Lead: the root, the direct dependency, and the edge kind.
 type leadJSON struct {
 	Root    string `json:"root"`
 	Name    string `json:"name"`
@@ -67,6 +75,8 @@ type leadJSON struct {
 	Kind    string `json:"kind"`
 }
 
+// stepJSON is one element of a path. The first element is the root and sets
+// Root; later ones carry the kind of the edge that led to them.
 type stepJSON struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
@@ -74,6 +84,7 @@ type stepJSON struct {
 	Kind    string `json:"kind,omitempty"`
 }
 
+// whyJSON is one result of why mode.
 type whyJSON struct {
 	Ecosystem      string       `json:"ecosystem"`
 	Lockfile       string       `json:"lockfile"`
@@ -85,12 +96,14 @@ type whyJSON struct {
 	Leads          []leadJSON   `json:"leads"`
 }
 
+// keptJSON is a package that stays after a removal, and the package keeping it.
 type keptJSON struct {
 	Name    string  `json:"name"`
 	Version string  `json:"version"`
 	Via     pkgJSON `json:"via"`
 }
 
+// removeJSON is one result of remove mode.
 type removeJSON struct {
 	Ecosystem   string     `json:"ecosystem"`
 	Lockfile    string     `json:"lockfile"`
@@ -102,26 +115,31 @@ type removeJSON struct {
 	RequiredBy  []leadJSON `json:"required_by"`
 }
 
+// dupeVersionJSON is one version of a duplicated package.
 type dupeVersionJSON struct {
 	Version string     `json:"version"`
 	Leads   []leadJSON `json:"leads"`
 }
 
+// dupeJSON is a package installed at several versions.
 type dupeJSON struct {
 	Name     string            `json:"name"`
 	Versions []dupeVersionJSON `json:"versions"`
 }
 
+// dupesJSON is one result of dupes mode: one lockfile's duplicates.
 type dupesJSON struct {
 	Ecosystem string     `json:"ecosystem"`
 	Lockfile  string     `json:"lockfile"`
 	Dupes     []dupeJSON `json:"dupes"`
 }
 
+// pkg converts a node to its JSON name/version pair.
 func pkg(g *graph.Graph, n int) pkgJSON {
 	return pkgJSON{g.Nodes[n].Name, g.Nodes[n].Version}
 }
 
+// leadsJSON converts leads, returning an empty non-nil slice when there are none.
 func leadsJSON(g *graph.Graph, ls []graph.Lead) []leadJSON {
 	out := make([]leadJSON, 0, len(ls))
 	for _, l := range ls {

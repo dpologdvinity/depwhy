@@ -11,12 +11,16 @@ const pathCap = 10
 // pathVisitLimit bounds the path search so pathological graphs cannot hang a capped run.
 const pathVisitLimit = 1_000_000
 
+// WhyOpts are the options that change a Why result.
 type WhyOpts struct {
-	Depth int
-	All   bool
-	Prod  bool
+	Depth int  // max tree levels printed, target = level 0; 0 means unlimited
+	All   bool // lift the 10-path cap
+	Prod  bool // ignore dev edges from roots and everything reachable only through them
 }
 
+// TreeNode is one line of the reverse tree printed by "depwhy <pkg>". The tree
+// root is the target; children are the packages that require their parent,
+// and root leaves are the projects that require a direct dependency.
 type TreeNode struct {
 	Node     int    // node index; -1 for the "…" placeholder
 	Kind     Kind   // kind of the edge from this node to its parent in the tree
@@ -24,25 +28,29 @@ type TreeNode struct {
 	Children []*TreeNode
 }
 
+// Lead names a direct dependency that leads to a target: Root requires Direct
+// with the given edge Kind, and Direct reaches the target (or is the target).
 type Lead struct {
 	Root, Direct int
 	Kind         Kind
 }
 
+// PathStep is one node on a root-to-target path.
 type PathStep struct {
 	Node int
 	Kind Kind // kind of the edge that led to this step; zero for the root
 }
 
+// WhyResult explains why Target is in the graph.
 type WhyResult struct {
 	Target    int
-	Tree      *TreeNode
+	Tree      *TreeNode    // reverse tree for text output, honoring Depth and the path cap
 	Paths     [][]PathStep // root-first, capped unless All
 	Truncated bool         // Paths was cut by the cap
 	MorePaths string       // text-tree leaves hidden by the cap: "" or a count
-	Leads     []Lead
-	Direct    bool
-	DevOnly   bool
+	Leads     []Lead       // every direct dependency that reaches Target, not capped
+	Direct    bool         // a root requires Target directly
+	DevOnly   bool         // Target is reachable only through dev dependencies
 }
 
 // DevOnly reports, per node, whether it is reachable from the roots only through
@@ -93,29 +101,54 @@ func (g *Graph) less(a, b int) bool {
 }
 
 // parents returns one incoming edge per distinct source (lowest Kind wins), sorted
-// by less. With prod, root Dev edges and dev-only sources are ignored.
+// by less. With prod, root Dev edges and dev-only sources are ignored. The graph is
+// immutable after Build, so each variant is computed once for all nodes.
 func (g *Graph) parents(n int, prod bool) []Edge {
+	i := 0
+	if prod {
+		i = 1
+	}
+	if g.parentCache[i] == nil {
+		g.parentCache[i] = g.computeParents(prod)
+	}
+	return g.parentCache[i][n]
+}
+
+// computeParents builds the parents list for every node. Duplicate sources keep
+// only their lowest-Kind edge; the result is sorted by Graph.less.
+func (g *Graph) computeParents(prod bool) [][]Edge {
 	var dev []bool
 	if prod {
 		dev = g.DevOnly()
 	}
-	best := map[int]Edge{}
-	for _, e := range g.In[n] {
-		if prod && ((g.Nodes[e.From].Root && e.Kind == Dev) || dev[e.From]) {
-			continue
+	all := make([][]Edge, len(g.Nodes))
+	for n := range g.Nodes {
+		var out []Edge
+		for _, e := range g.In[n] {
+			if prod && ((g.Nodes[e.From].Root && e.Kind == Dev) || dev[e.From]) {
+				continue
+			}
+			dup := false
+			for j := range out {
+				if out[j].From == e.From {
+					dup = true
+					if e.Kind < out[j].Kind {
+						out[j] = e
+					}
+				}
+			}
+			if !dup {
+				out = append(out, e)
+			}
 		}
-		if cur, ok := best[e.From]; !ok || e.Kind < cur.Kind {
-			best[e.From] = e
-		}
+		sort.Slice(out, func(a, b int) bool { return g.less(out[a].From, out[b].From) })
+		all[n] = out
 	}
-	out := make([]Edge, 0, len(best))
-	for _, e := range best {
-		out = append(out, e)
-	}
-	sort.Slice(out, func(i, j int) bool { return g.less(out[i].From, out[j].From) })
-	return out
+	return all
 }
 
+// rootParents is parents restricted to root nodes: the projects that require n
+// directly.
 func (g *Graph) rootParents(n int, prod bool) []Edge {
 	var out []Edge
 	for _, e := range g.parents(n, prod) {
@@ -126,16 +159,21 @@ func (g *Graph) rootParents(n int, prod bool) []Edge {
 	return out
 }
 
+// treeBuilder holds the state of one reverse-tree walk.
 type treeBuilder struct {
 	g        *Graph
 	opts     WhyOpts
-	direct   bool
-	limit    int // stop after this many root leaves; 0 = unlimited
-	leaves   int
-	expanded map[int]bool
-	onPath   map[int]bool
+	direct   bool         // the target is a direct dependency: show only root parents at level 0
+	limit    int          // stop after this many root leaves; 0 = unlimited
+	leaves   int          // root leaves added so far
+	expanded map[int]bool // nodes already expanded; a repeat is shown as (*)
+	onPath   map[int]bool // nodes on the current branch; a repeat is a (cycle)
 }
 
+// expand adds tn's parents as children, depth first, in the order given by
+// Graph.less. Roots become leaves. A parent already on the current branch
+// gets the (cycle) marker and one already expanded elsewhere gets (*); neither
+// is expanded again, which keeps the tree linear in the size of the graph.
 func (b *treeBuilder) expand(tn *TreeNode, level int) {
 	var edges []Edge
 	if level == 0 && b.direct {
@@ -172,6 +210,8 @@ func (b *treeBuilder) expand(tn *TreeNode, level int) {
 	delete(b.onPath, tn.Node)
 }
 
+// buildTree builds the reverse tree for t and returns it with the number of
+// root leaves it contains. limit is the leaf cap (0 for none).
 func (g *Graph) buildTree(t int, o WhyOpts, direct bool, limit int) (*TreeNode, int) {
 	b := &treeBuilder{g: g, opts: o, direct: direct, limit: limit, expanded: map[int]bool{}, onPath: map[int]bool{}}
 	root := &TreeNode{Node: t}
@@ -179,7 +219,10 @@ func (g *Graph) buildTree(t int, o WhyOpts, direct bool, limit int) (*TreeNode, 
 	return root, b.leaves
 }
 
-// Why explains every route from the roots to t (SPEC §6.1).
+// Why explains every route from the roots to t (SPEC §6.1). It returns the
+// reverse tree, the capped list of root-to-t paths, and the direct
+// dependencies that lead to t. Unless o.All is set, the tree and path list stop
+// after 10 paths and MorePaths says how many tree leaves were hidden.
 func (g *Graph) Why(t int, o WhyOpts) WhyResult {
 	res := WhyResult{Target: t, DevOnly: g.DevOnly()[t]}
 	res.Direct = len(g.rootParents(t, o.Prod)) > 0

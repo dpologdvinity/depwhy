@@ -1,4 +1,7 @@
-// Package render prints query results as text or JSON.
+// Package render turns graph query results into output: the text trees and
+// summaries of SPEC §7.1 and §7.2, and the JSON document of §7.3. It reads
+// results but never computes them, so every decision about what to show lives
+// in package graph.
 package render
 
 import (
@@ -11,12 +14,13 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
-// Pseudo node indexes in a printed tree.
+// Pseudo node indexes used in a printed tree for lines that are not packages.
 const (
 	nodeEllipsis = -1
 	nodeMore     = -2
 )
 
+// pkgID formats a node as name@version, or just the name when it has no version.
 func pkgID(g *graph.Graph, n int) string {
 	if v := g.Nodes[n].Version; v != "" {
 		return g.Nodes[n].Name + "@" + v
@@ -24,10 +28,12 @@ func pkgID(g *graph.Graph, n int) string {
 	return g.Nodes[n].Name
 }
 
+// source formats the "ecosystem · lockfile" suffix shown on headings.
 func source(g *graph.Graph) string {
 	return g.Ecosystem + " · " + filepath.Base(g.Lockfile)
 }
 
+// plural formats a count with its noun, adding an "s" unless n is 1.
 func plural(n int, word string) string {
 	if n == 1 {
 		return fmt.Sprintf("%d %s", n, word)
@@ -46,8 +52,11 @@ func leadText(g *graph.Graph, leads []graph.Lead, s Style, label func(graph.Lead
 	return strings.Join(parts, ", ")
 }
 
+// directOf selects the direct dependency of a lead, for leadText.
 func directOf(l graph.Lead) int { return l.Direct }
-func rootOf(l graph.Lead) int   { return l.Root }
+
+// rootOf selects the root of a lead, for leadText.
+func rootOf(l graph.Lead) int { return l.Root }
 
 // WhyText prints one reverse tree, with a footer summarizing the direct dependencies.
 func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style) {
@@ -71,6 +80,8 @@ func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style) {
 	}
 }
 
+// printTree prints kids and their descendants with box-drawing connectors.
+// prefix is the indentation inherited from the ancestors.
 func printTree(w io.Writer, g *graph.Graph, kids []*graph.TreeNode, prefix string, s Style) {
 	for i, k := range kids {
 		conn, next := "├── ", prefix+"│   "
@@ -82,6 +93,8 @@ func printTree(w io.Writer, g *graph.Graph, kids []*graph.TreeNode, prefix strin
 	}
 }
 
+// treeLabel returns the text of one tree line: a package, a root leaf with its
+// edge kind, a marker, or one of the pseudo lines.
 func treeLabel(g *graph.Graph, k *graph.TreeNode, s Style) string {
 	switch {
 	case k.Node == nodeEllipsis:

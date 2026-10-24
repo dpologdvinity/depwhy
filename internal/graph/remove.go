@@ -2,18 +2,22 @@ package graph
 
 import "sort"
 
+// Kept is a package that stays installed after a removal. Via is the first
+// package on the shortest remaining route from a root; it equals Node when a
+// root requires Node directly.
 type Kept struct{ Node, Via int }
 
+// RemoveResult is the outcome of dropping a direct dependency (SPEC §6.2).
 type RemoveResult struct {
 	Target      int
-	NotDirect   bool
-	RequiredBy  []Lead
-	Freed       []int
-	Kept        []Kept
-	StillNeeded bool
-	StillVia    int
-	Kind        Kind // kind of the root→target edge
-	Root        int
+	NotDirect   bool   // Target is not required by any root; nothing else is computed
+	RequiredBy  []Lead // when NotDirect: the direct dependencies that pull Target in
+	Freed       []int  // packages that would leave the tree, sorted by name and version
+	Kept        []Kept // packages Target requires that stay because something else needs them
+	StillNeeded bool   // Target itself stays, required by another package
+	StillVia    int    // when StillNeeded: the package that keeps it
+	Kind        Kind   // kind of the root→target edge
+	Root        int    // the root that requires Target
 }
 
 // Remove analyzes dropping the root→t edges (SPEC §6.2). With prod, root Dev
@@ -44,7 +48,7 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 
 	// first returns the first non-root node on the shortest root path to n.
 	first := func(n int) int {
-		for g.Nodes[parent[n]].Root == false {
+		for !g.Nodes[parent[n]].Root {
 			n = parent[n]
 		}
 		return n
@@ -77,6 +81,7 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 	return res
 }
 
+// sortNodes orders node indexes by name, then version.
 func (g *Graph) sortNodes(ix []int) {
 	sort.Slice(ix, func(a, b int) bool {
 		na, nb := g.Nodes[ix[a]], g.Nodes[ix[b]]
@@ -87,6 +92,8 @@ func (g *Graph) sortNodes(ix []int) {
 	})
 }
 
+// reachable returns the nodes reachable from the roots, ignoring edges for
+// which skip returns true.
 func (g *Graph) reachable(skip func(Edge) bool) []bool {
 	seen, _ := g.bfsFromRoots(skip)
 	return seen

@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestPnpmSplitKey checks name/version splitting, including scoped names and peer suffixes.
 func TestPnpmSplitKey(t *testing.T) {
 	cases := []struct{ in, name, version string }{
 		{"@babel/core@7.24.0(@types/node@20.0.0)", "@babel/core", "7.24.0"},
@@ -21,6 +22,8 @@ func TestPnpmSplitKey(t *testing.T) {
 	}
 }
 
+// TestParsePnpmMain checks the shared fixture, including the root label read from
+// package.json.
 func TestParsePnpmMain(t *testing.T) {
 	g, warns, err := ParsePnpm("../../testdata/projects/pnpm/pnpm-lock.yaml", readFixture(t, "../../testdata/projects/pnpm/pnpm-lock.yaml"))
 	if err != nil {
@@ -46,6 +49,8 @@ func TestParsePnpmMain(t *testing.T) {
 	}
 }
 
+// TestParsePnpmPeersAndAliases checks that peer variants merge into one node and
+// that an alias resolves to the real package.
 func TestParsePnpmPeersAndAliases(t *testing.T) {
 	p := "../../testdata/edge/pnpm-peers/pnpm-lock.yaml"
 	g, warns, err := ParsePnpm(p, readFixture(t, p))
@@ -67,6 +72,7 @@ func TestParsePnpmPeersAndAliases(t *testing.T) {
 	}
 }
 
+// TestParsePnpmOldVersion checks the error for lockfile versions before 9.
 func TestParsePnpmOldVersion(t *testing.T) {
 	_, _, err := ParsePnpm("pnpm-lock.yaml", []byte("lockfileVersion: '6.0'\n"))
 	want := "parse pnpm-lock.yaml: pnpm-lock.yaml lockfileVersion 6.0 is not supported; need 9.x (pnpm >= 9)"
@@ -75,6 +81,8 @@ func TestParsePnpmOldVersion(t *testing.T) {
 	}
 }
 
+// TestParsePnpmLinkAndFileRefs checks link: refs to other importers, file: refs,
+// and the warnings for a bad link and a missing snapshot.
 func TestParsePnpmLinkAndFileRefs(t *testing.T) {
 	data := `lockfileVersion: '9.0'
 importers:

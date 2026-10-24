@@ -6,7 +6,9 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
-// finish builds the graph and warns about packages no root reaches.
+// finish builds the graph from b and adds a warning for each package that no
+// root can reach. Such orphans do occur in real lockfiles; they are kept in the
+// graph but cannot appear in any result. warns holds the parser's own warnings.
 func finish(b *graph.Builder, warns []string) (*graph.Graph, []string, error) {
 	g, err := b.Build()
 	if err != nil {

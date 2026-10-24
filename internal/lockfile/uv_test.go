@@ -5,46 +5,9 @@ import (
 	"testing"
 )
 
-// Same logical graph as testdata/projects/uv/uv.lock (c is single-version in python).
-const uvMain = `
-version = 1
-revision = 2
-requires-python = ">=3.12"
-
-[[package]]
-name = "app"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [{ name = "a" }]
-
-[package.dev-dependencies]
-dev = [{ name = "b" }]
-
-[[package]]
-name = "a"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [{ name = "c" }, { name = "d" }]
-
-[[package]]
-name = "b"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [{ name = "c" }, { name = "d" }]
-
-[[package]]
-name = "c"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-
-[[package]]
-name = "d"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-`
-
+// TestParseUVMain checks the shared fixture: root, edges and the dev group kind.
 func TestParseUVMain(t *testing.T) {
-	g, warns, err := ParseUV("uv.lock", []byte(uvMain))
+	g, warns, err := ParseUV("uv.lock", readFixture(t, "../../testdata/projects/uv/uv.lock.fixture"))
 	if err != nil || len(warns) != 0 {
 		t.Fatalf("err=%v warns=%v", err, warns)
 	}
@@ -67,6 +30,8 @@ func TestParseUVMain(t *testing.T) {
 	}
 }
 
+// TestParseUVWorkspaceMembers checks that [manifest] members become roots and that
+// optional-dependencies give optional edges.
 func TestParseUVWorkspaceMembers(t *testing.T) {
 	data := `
 version = 1
@@ -115,6 +80,8 @@ source = { registry = "https://pypi.org/simple" }
 	}
 }
 
+// TestParseUVSameNameResolvesByVersion checks that a dependency's version picks
+// between packages with the same name.
 func TestParseUVSameNameResolvesByVersion(t *testing.T) {
 	data := `
 version = 1
@@ -150,6 +117,8 @@ source = { registry = "r" }
 	}
 }
 
+// TestParseUVAmbiguousAndVersionWarning checks the warnings for an ambiguous
+// dependency, an unsupported lockfile version, and an unreachable package.
 func TestParseUVAmbiguousAndVersionWarning(t *testing.T) {
 	data := `
 version = 2
@@ -182,6 +151,7 @@ source = { registry = "r" }
 	}
 }
 
+// TestParseUVNoRoots checks that a lockfile with no root is an error.
 func TestParseUVNoRoots(t *testing.T) {
 	_, _, err := ParseUV("uv.lock", []byte("version = 1\n[[package]]\nname = \"x\"\nversion = \"1\"\nsource = { registry = \"r\" }\n"))
 	if err == nil {

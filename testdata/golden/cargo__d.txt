@@ -1,0 +1,10 @@
+d@1.0.0  cargo · Cargo.lock
+├── a@1.0.0
+│   └── app (root, prod)
+└── b@1.0.0
+    └── app (root, prod)
+pulled in by 2 direct dependencies: a (prod), b (prod)
+
+--- stderr
+
+--- exit=0

@@ -5,45 +5,10 @@ import (
 	"testing"
 )
 
-// Same logical graph as testdata/projects/cargo/Cargo.lock.
-const cargoMain = `
-version = 4
-
-[[package]]
-name = "a"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = ["c 1.0.0", "d"]
-
-[[package]]
-name = "app"
-version = "0.1.0"
-dependencies = ["a", "b"]
-
-[[package]]
-name = "b"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = ["c 2.0.0", "d"]
-
-[[package]]
-name = "c"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "c"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "d"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-`
-
+// TestParseCargoMain checks the shared fixture: roots, edges, and that every edge
+// is prod because Cargo.lock has no dev information.
 func TestParseCargoMain(t *testing.T) {
-	g, warns, err := ParseCargo("Cargo.lock", []byte(cargoMain))
+	g, warns, err := ParseCargo("Cargo.lock", readFixture(t, "../../testdata/projects/cargo/Cargo.lock.fixture"))
 	if err != nil || len(warns) != 0 {
 		t.Fatalf("err=%v warns=%v", err, warns)
 	}
@@ -66,6 +31,8 @@ func TestParseCargoMain(t *testing.T) {
 	}
 }
 
+// TestParseCargoAmbiguousName checks that a dependency without a version warns and
+// picks the first matching package.
 func TestParseCargoAmbiguousName(t *testing.T) {
 	data := `
 [[package]]
@@ -96,6 +63,8 @@ source = "registry+x"
 	}
 }
 
+// TestParseCargoSourceDisambiguates checks that the source in a dependency string
+// selects between packages with the same name and version.
 func TestParseCargoSourceDisambiguates(t *testing.T) {
 	data := `
 [[package]]
@@ -122,6 +91,8 @@ source = "git+https://example.com/c"
 	}
 }
 
+// TestParseCargoMissingVersionKeyAndOldFormat checks that a lockfile with no
+// version key, and packages with no version, still parse.
 func TestParseCargoMissingVersionKeyAndOldFormat(t *testing.T) {
 	data := `
 [[package]]
@@ -141,6 +112,8 @@ source = "registry+x"
 	}
 }
 
+// TestParseCargoUnknownVersionWarns checks that an unknown lockfile version warns
+// but still parses.
 func TestParseCargoUnknownVersionWarns(t *testing.T) {
 	_, warns, err := ParseCargo("Cargo.lock", []byte("version = 9\n[[package]]\nname = \"app\"\nversion = \"1\"\n"))
 	if err != nil || !reflect.DeepEqual(warns, []string{"unsupported Cargo.lock version 9; results may be wrong"}) {

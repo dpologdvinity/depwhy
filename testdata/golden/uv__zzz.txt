@@ -1,0 +1,5 @@
+
+--- stderr
+depwhy: zzz not found in uv.lock
+
+--- exit=1

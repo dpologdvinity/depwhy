@@ -91,6 +91,8 @@ func Suggest(gs []*Graph, name string) []string {
 	return out
 }
 
+// levenshtein returns the edit distance between a and b (insertions,
+// deletions and substitutions each cost 1), using two rolling rows.
 func levenshtein(a, b string) int {
 	ra, rb := []rune(a), []rune(b)
 	prev := make([]int, len(rb)+1)

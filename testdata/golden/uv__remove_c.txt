@@ -1,0 +1,6 @@
+c@1.0.0 is not a direct dependency. it is required by: a (prod), b (dev)
+remove those instead, or run `depwhy c` for details.
+
+--- stderr
+
+--- exit=0

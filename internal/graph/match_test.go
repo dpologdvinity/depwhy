@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestSplitQuery checks name@version splitting, including scoped npm names.
 func TestSplitQuery(t *testing.T) {
 	cases := []struct{ in, name, version string }{
 		{"lodash", "lodash", ""},
@@ -20,6 +21,7 @@ func TestSplitQuery(t *testing.T) {
 	}
 }
 
+// TestNormalize checks per-ecosystem name normalization (PEP 503 and cargo).
 func TestNormalize(t *testing.T) {
 	cases := []struct{ eco, in, want string }{
 		{"npm", "Lodash", "Lodash"},
@@ -34,6 +36,7 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
+// buildSimple makes a graph in which one root requires every given name@version.
 func buildSimple(t *testing.T, eco string, pkgs ...[2]string) *Graph {
 	t.Helper()
 	b := NewBuilder(eco, "lock")
@@ -48,6 +51,8 @@ func buildSimple(t *testing.T, eco string, pkgs ...[2]string) *Graph {
 	return g
 }
 
+// TestFind checks normalized matching, the version filter, and that roots are
+// never matched.
 func TestFind(t *testing.T) {
 	g := buildSimple(t, "python", [2]string{"Foo_Bar", "2.0"}, [2]string{"foo-bar", "1.0"}, [2]string{"other", "1"})
 	ids := func(ix []int) []string {
@@ -71,6 +76,8 @@ func TestFind(t *testing.T) {
 	}
 }
 
+// TestSuggestOrdering checks the edit-distance cutoff, the sort order (distance,
+// then name) and the cap of three suggestions.
 func TestSuggestOrdering(t *testing.T) {
 	g1 := buildSimple(t, "npm", [2]string{"lodash", "1"}, [2]string{"lodash.get", "1"}, [2]string{"lodas", "1"}, [2]string{"unrelated", "1"})
 	g2 := buildSimple(t, "python", [2]string{"lodash", "1"}, [2]string{"lodashx", "1"})

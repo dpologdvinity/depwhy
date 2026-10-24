@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// touch creates empty files in dir; Detect only checks that files exist.
 func touch(t *testing.T, dir string, names ...string) {
 	t.Helper()
 	for _, n := range names {
@@ -16,6 +17,7 @@ func touch(t *testing.T, dir string, names ...string) {
 	}
 }
 
+// formats lists the format ids of the found lockfiles.
 func formats(fs []Found) []string {
 	var out []string
 	for _, f := range fs {
@@ -24,6 +26,7 @@ func formats(fs []Found) []string {
 	return out
 }
 
+// TestDetectOrderAndEcosystems checks the output order and the ecosystem filter.
 func TestDetectOrderAndEcosystems(t *testing.T) {
 	d := t.TempDir()
 	touch(t, d, "Cargo.lock", "uv.lock", "package-lock.json")
@@ -43,6 +46,8 @@ func TestDetectOrderAndEcosystems(t *testing.T) {
 	}
 }
 
+// TestDetectPnpmWinsOverNpm checks that pnpm-lock.yaml is preferred over
+// package-lock.json, with a warning.
 func TestDetectPnpmWinsOverNpm(t *testing.T) {
 	d := t.TempDir()
 	touch(t, d, "pnpm-lock.yaml", "package-lock.json")
@@ -59,6 +64,7 @@ func TestDetectPnpmWinsOverNpm(t *testing.T) {
 	}
 }
 
+// TestDetectNothing checks the error when no lockfile matches.
 func TestDetectNothing(t *testing.T) {
 	d := t.TempDir()
 	touch(t, d, "uv.lock")
@@ -69,6 +75,8 @@ func TestDetectNothing(t *testing.T) {
 	}
 }
 
+// TestFromPaths checks load order, the unrecognized-name error, and the error when
+// the ecosystem filter leaves nothing.
 func TestFromPaths(t *testing.T) {
 	fs, err := FromPaths([]string{"x/Cargo.lock", "y/pnpm-lock.yaml", "z/package-lock.json"}, "")
 	if err != nil {
@@ -86,6 +94,7 @@ func TestFromPaths(t *testing.T) {
 	}
 }
 
+// TestLoadDispatches checks that Load picks the parser by format and reports read errors.
 func TestLoadDispatches(t *testing.T) {
 	g, _, err := Load(Found{Path: "../../testdata/projects/npm/package-lock.json", Ecosystem: "npm", Format: "npm"})
 	if err != nil || len(g.Nodes) != 6 {

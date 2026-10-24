@@ -1,3 +1,9 @@
+// Package lockfile finds lockfiles and parses them into graph.Graph values.
+//
+// Detect and FromPaths decide which files to read (SPEC §4), Load dispatches
+// to the parser for a file's format, and each ParseX function turns the bytes
+// of one format into a graph. Parsers are pure: they read only the data they
+// are given, apart from pnpm, which also reads package.json for root labels.
 package lockfile
 
 import (
@@ -9,9 +15,12 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
+// Found is a lockfile selected for loading. Format is one of "pnpm", "npm",
+// "uv" or "cargo"; Ecosystem is "npm", "python" or "cargo".
 type Found struct{ Path, Ecosystem, Format string }
 
-// supported is in load/output order (SPEC §4).
+// supported lists the lockfile names depwhy understands. The order is both
+// the load order and the output order (SPEC §4).
 var supported = []struct{ File, Ecosystem, Format string }{
 	{"pnpm-lock.yaml", "npm", "pnpm"},
 	{"package-lock.json", "npm", "npm"},
@@ -19,7 +28,10 @@ var supported = []struct{ File, Ecosystem, Format string }{
 	{"Cargo.lock", "cargo", "cargo"},
 }
 
-// Detect looks for lockfiles in dir, one per ecosystem. ecosystem "" means all.
+// Detect looks for lockfiles in dir, at most one per ecosystem. ecosystem "" means
+// all. If a directory has both pnpm-lock.yaml and package-lock.json it keeps the
+// pnpm file and returns a warning. It returns an error when nothing is found.
+// Detect only checks that files exist; it does not parse them.
 func Detect(dir, ecosystem string) ([]Found, []string, error) {
 	var found []Found
 	var warns []string
@@ -45,7 +57,10 @@ func Detect(dir, ecosystem string) ([]Found, []string, error) {
 	return found, warns, nil
 }
 
-// FromPaths classifies explicit lockfile paths by base name, in load order.
+// FromPaths classifies explicit lockfile paths by base name and returns them in
+// load order. Unlike Detect it does not apply the one-lockfile-per-ecosystem
+// rule. It errors on an unknown file name, or when ecosystem filters out every
+// path.
 func FromPaths(paths []string, ecosystem string) ([]Found, error) {
 	var found []Found
 	rank := map[string]int{}
@@ -74,7 +89,8 @@ func FromPaths(paths []string, ecosystem string) ([]Found, error) {
 	return found, nil
 }
 
-// Load reads and parses one lockfile.
+// Load reads the file named by f and parses it with the parser for f.Format.
+// The returned strings are warnings; they never indicate failure.
 func Load(f Found) (*graph.Graph, []string, error) {
 	data, err := os.ReadFile(f.Path)
 	if err != nil {
