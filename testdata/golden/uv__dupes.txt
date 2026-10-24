@@ -1,0 +1,6 @@
+python · uv.lock
+no duplicate packages
+
+--- stderr
+
+--- exit=0

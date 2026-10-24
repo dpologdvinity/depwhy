@@ -5,46 +5,8 @@ import (
 	"testing"
 )
 
-// Same logical graph as testdata/projects/uv/uv.lock (c is single-version in python).
-const uvMain = `
-version = 1
-revision = 2
-requires-python = ">=3.12"
-
-[[package]]
-name = "app"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [{ name = "a" }]
-
-[package.dev-dependencies]
-dev = [{ name = "b" }]
-
-[[package]]
-name = "a"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [{ name = "c" }, { name = "d" }]
-
-[[package]]
-name = "b"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [{ name = "c" }, { name = "d" }]
-
-[[package]]
-name = "c"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-
-[[package]]
-name = "d"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-`
-
 func TestParseUVMain(t *testing.T) {
-	g, warns, err := ParseUV("uv.lock", []byte(uvMain))
+	g, warns, err := ParseUV("uv.lock", readFixture(t, "../../testdata/projects/uv/uv.lock.fixture"))
 	if err != nil || len(warns) != 0 {
 		t.Fatalf("err=%v warns=%v", err, warns)
 	}

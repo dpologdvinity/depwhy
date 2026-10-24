@@ -1,0 +1,10 @@
+removing a@1.0.0 (direct, prod) from app  cargo · Cargo.lock
+would remove 2 packages:
+  a@1.0.0
+  c@1.0.0
+still needed by others (1):
+  d@1.0.0  via b@1.0.0
+
+--- stderr
+
+--- exit=0

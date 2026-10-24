@@ -5,45 +5,8 @@ import (
 	"testing"
 )
 
-// Same logical graph as testdata/projects/cargo/Cargo.lock.
-const cargoMain = `
-version = 4
-
-[[package]]
-name = "a"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = ["c 1.0.0", "d"]
-
-[[package]]
-name = "app"
-version = "0.1.0"
-dependencies = ["a", "b"]
-
-[[package]]
-name = "b"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = ["c 2.0.0", "d"]
-
-[[package]]
-name = "c"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "c"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "d"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-`
-
 func TestParseCargoMain(t *testing.T) {
-	g, warns, err := ParseCargo("Cargo.lock", []byte(cargoMain))
+	g, warns, err := ParseCargo("Cargo.lock", readFixture(t, "../../testdata/projects/cargo/Cargo.lock.fixture"))
 	if err != nil || len(warns) != 0 {
 		t.Fatalf("err=%v warns=%v", err, warns)
 	}
