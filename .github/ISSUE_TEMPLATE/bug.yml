@@ -1,0 +1,24 @@
+name: Bug report
+description: depwhy gave a wrong or confusing answer
+labels: [bug]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: depwhy --remove lodash
+    validations: {required: true}
+  - type: textarea
+    id: output
+    attributes:
+      label: Output and what you expected
+    validations: {required: true}
+  - type: textarea
+    id: lockfile
+    attributes:
+      label: Lockfile snippet
+      description: The smallest part of the lockfile that reproduces it. Remove private package names.
+  - type: input
+    id: version
+    attributes:
+      label: depwhy --version
