@@ -9,11 +9,16 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
+// npmLock is the subset of package-lock.json (lockfileVersion 2 and 3) depwhy
+// reads. The legacy "dependencies" tree is ignored.
 type npmLock struct {
 	LockfileVersion int                 `json:"lockfileVersion"`
 	Packages        map[string]npmEntry `json:"packages"`
 }
 
+// npmEntry is one value of the "packages" map. The key (not the entry) holds
+// the install path; Name is only present for aliased packages and workspace
+// members.
 type npmEntry struct {
 	Name                 string            `json:"name"`
 	Version              string            `json:"version"`
@@ -25,7 +30,11 @@ type npmEntry struct {
 	PeerDependencies     map[string]string `json:"peerDependencies"`
 }
 
-// npmResolve returns the packages-map key that `name` resolves to from entry key `from`.
+// npmResolve returns the packages-map key that `name` resolves to from the entry
+// at key `from`, using Node's lookup rule: try from/node_modules/name, then walk
+// up one node_modules level at a time. A symlink entry ("link": true) is
+// followed to the workspace directory it points at. It reports false when the
+// dependency is not installed.
 func npmResolve(pkgs map[string]npmEntry, from, name string) (string, bool) {
 	for p := from; ; {
 		key := "node_modules/" + name
@@ -50,8 +59,12 @@ func npmResolve(pkgs map[string]npmEntry, from, name string) (string, bool) {
 	}
 }
 
+// npmIsRoot reports whether a packages-map key is the project ("") or a
+// workspace member directory, rather than an installed package.
 func npmIsRoot(key string) bool { return !strings.Contains(key, "node_modules/") }
 
+// npmName returns the package name for an installed entry: its "name" field, or
+// the path after the last node_modules/ (which keeps @scope/name together).
 func npmName(key string, e npmEntry) string {
 	if e.Name != "" {
 		return e.Name
@@ -59,7 +72,13 @@ func npmName(key string, e npmEntry) string {
 	return key[strings.LastIndex(key, "node_modules/")+len("node_modules/"):]
 }
 
-// ParseNPM parses package-lock.json (lockfileVersion 2 or 3).
+// ParseNPM parses package-lock.json (lockfileVersion 2 or 3, SPEC §8.1).
+//
+// The project and workspace members become roots; everything else is a package
+// node. Edge kinds come from the field that declared the edge, and only roots
+// may have dev dependencies. Keys are processed in sorted order so the graph
+// is identical on every run. Unresolvable prod or dev dependencies produce
+// warnings; unresolvable optional and peer ones are skipped silently.
 func ParseNPM(path string, data []byte) (*graph.Graph, []string, error) {
 	var lock npmLock
 	if err := json.Unmarshal(data, &lock); err != nil {

@@ -1,4 +1,9 @@
-// Package cli parses flags and runs depwhy.
+// Package cli is depwhy's command line front end.
+//
+// Run parses flags, finds and loads lockfiles, runs the selected mode (why,
+// --remove or --dupes) and renders the result as text or JSON. It returns the
+// process exit code instead of exiting and takes its output streams as
+// arguments, so tests can run it end to end.
 package cli
 
 import (
@@ -28,6 +33,7 @@ func resolveVersion(ldflags string, info *debug.BuildInfo) string {
 	return info.Main.Version
 }
 
+// usage is the help text printed before the generated flag list.
 const usage = `usage:
   depwhy [flags] <package>[@version]      explain why <package> is installed
   depwhy [flags] --remove <package>       impact of removing a direct dependency
@@ -37,6 +43,8 @@ const usage = `usage:
 flags:
 `
 
+// notes is the help text printed after the flag list. It documents the known
+// limits of the supported lockfile formats (SPEC §8.4).
 const notes = `
 notes:
   Cargo.lock records no dev or build edges, so every cargo edge is shown as prod.
@@ -44,13 +52,15 @@ notes:
   Platform markers are ignored; all edges count.
 `
 
+// options holds the parsed command line. Field names mirror the flags in
+// SPEC §3.1; query is the positional package argument (empty for --dupes).
 type options struct {
 	remove, dupes, prod, all, json, noColor bool
-	dir                                     string
-	lockfiles                               []string
-	ecosystem                               string
-	depth                                   int
-	query                                   string
+	dir                                     string   // directory searched for lockfiles
+	lockfiles                               []string // explicit lockfile paths; disables detection
+	ecosystem                               string   // "", "npm", "python", or "cargo"
+	depth                                   int      // max why-tree levels; 0 means unlimited
+	query                                   string   // "name" or "name@version"
 }
 
 // Run executes depwhy and returns the process exit code.
@@ -90,6 +100,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	return execute(&o, stdout, stderr)
 }
 
+// validate checks flag combinations and the positional arguments (SPEC §3). It
+// returns a usage message, or "" when the invocation is valid, and stores the
+// package argument in o.query.
 func validate(o *options, pos []string) string {
 	switch {
 	case o.remove && o.dupes:
@@ -109,6 +122,7 @@ func validate(o *options, pos []string) string {
 	return ""
 }
 
+// usageErr prints a usage error to stderr and returns exit code 2.
 func usageErr(stderr io.Writer, msg string) int {
 	fmt.Fprintf(stderr, "depwhy: %s\nrun `depwhy --help` for usage\n", msg)
 	return 2
@@ -120,6 +134,10 @@ type match struct {
 	n int
 }
 
+// execute runs a validated invocation: it finds and loads the lockfiles, then
+// hands the graphs to the selected mode. Unreadable or unparsable lockfiles
+// are fatal (exit 2); parser warnings are reported but never change the exit
+// code. Lockfile order is the output order (SPEC §4).
 func execute(o *options, stdout, stderr io.Writer) int {
 	fail := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "depwhy: "+format+"\n", a...)
@@ -170,6 +188,8 @@ func execute(o *options, stdout, stderr io.Writer) int {
 	return query(o, graphs, style, warnings, stdout, stderr)
 }
 
+// dupes runs --dupes mode: one block of text (or one JSON result) per lockfile.
+// It always exits 0, even when no duplicates exist.
 func dupes(o *options, graphs []*graph.Graph, style render.Style, warnings []string, stdout, stderr io.Writer) int {
 	doc := render.NewDoc("dupes", nil)
 	doc.Warnings = append(doc.Warnings, warnings...)
@@ -187,6 +207,10 @@ func dupes(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 	return finishJSON(o, doc, stdout, stderr)
 }
 
+// query runs the why and --remove modes. It collects every node matching the
+// query across all graphs (ecosystem order, then version ascending) and
+// prints one result per match. With no match it prints suggestions and
+// returns exit code 1.
 func query(o *options, graphs []*graph.Graph, style render.Style, warnings []string, stdout, stderr io.Writer) int {
 	name, version := graph.SplitQuery(o.query)
 	mode := "why"
@@ -257,6 +281,8 @@ func query(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 	return finishJSON(o, doc, stdout, stderr)
 }
 
+// finishJSON writes the accumulated JSON document when --json is set. Text
+// mode prints as it goes, so there is nothing left to do.
 func finishJSON(o *options, doc *render.Doc, stdout, stderr io.Writer) int {
 	if o.json {
 		if err := doc.Encode(stdout); err != nil {

@@ -25,6 +25,7 @@ func fixtureGraph(t testing.TB) *Graph {
 	return g
 }
 
+// byID returns the index of the node with the given ID, or panics.
 func (g *Graph) byID(id string) int {
 	for i, n := range g.Nodes {
 		if n.ID == id {
@@ -34,6 +35,7 @@ func (g *Graph) byID(id string) int {
 	panic("no node " + id)
 }
 
+// ids converts node indexes to node IDs for readable assertions.
 func ids(g *Graph, ix []int) []string {
 	out := []string{}
 	for _, i := range ix {
@@ -42,6 +44,7 @@ func ids(g *Graph, ix []int) []string {
 	return out
 }
 
+// keptStrings renders kept packages as "node via keeper".
 func keptStrings(g *Graph, ks []Kept) []string {
 	out := []string{}
 	for _, k := range ks {
@@ -50,6 +53,8 @@ func keptStrings(g *Graph, ks []Kept) []string {
 	return out
 }
 
+// TestRemoveDirect checks the main case: removing a frees a and c@1.0.0 while d
+// stays because b still needs it.
 func TestRemoveDirect(t *testing.T) {
 	g := fixtureGraph(t)
 	r := g.Remove(g.byID("a@1.0.0"), false)
@@ -64,6 +69,7 @@ func TestRemoveDirect(t *testing.T) {
 	}
 }
 
+// TestRemoveNotDirect checks that removing a transitive package reports who requires it.
 func TestRemoveNotDirect(t *testing.T) {
 	g := fixtureGraph(t)
 	r := g.Remove(g.byID("c@1.0.0"), false)
@@ -75,6 +81,8 @@ func TestRemoveNotDirect(t *testing.T) {
 	}
 }
 
+// TestRemoveTargetStaysWhenRequiredElsewhere checks that a target which another
+// package also requires is reported as still needed, with its dependencies kept.
 func TestRemoveTargetStaysWhenRequiredElsewhere(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "app>b", "b>a", "a>x")
 	r := g.Remove(g.id("a"), false)
@@ -89,6 +97,8 @@ func TestRemoveTargetStaysWhenRequiredElsewhere(t *testing.T) {
 	}
 }
 
+// TestRemoveProdIgnoresDevRoutes checks that --prod ignores dev edges from the
+// roots, so a package kept alive only through a dev dependency is freed.
 func TestRemoveProdIgnoresDevRoutes(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "app>b:dev", "b>a")
 	if r := g.Remove(g.id("a"), false); !r.StillNeeded {
@@ -104,6 +114,8 @@ func TestRemoveProdIgnoresDevRoutes(t *testing.T) {
 	}
 }
 
+// TestRemoveHandlesCycles checks that a dependency cycle is freed as a whole and
+// does not hang the traversal.
 func TestRemoveHandlesCycles(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "a>b", "b>a", "b>c")
 	r := g.Remove(g.id("a"), false)
@@ -112,6 +124,8 @@ func TestRemoveHandlesCycles(t *testing.T) {
 	}
 }
 
+// TestDupes checks version grouping, version order, per-version leads, and that
+// --prod drops dev-only versions.
 func TestDupes(t *testing.T) {
 	g := fixtureGraph(t)
 	ds := g.Dupes(false)
@@ -133,6 +147,7 @@ func TestDupes(t *testing.T) {
 	}
 }
 
+// TestDupesSortByCountThenName checks the group order: most versions first, then name.
 func TestDupesSortByCountThenName(t *testing.T) {
 	b := NewBuilder("npm", "l")
 	r := b.Root("app", "")
@@ -149,6 +164,8 @@ func TestDupesSortByCountThenName(t *testing.T) {
 	}
 }
 
+// TestRemoveKeptStopsAtWorkspaceRoots checks that a workspace member's own
+// dependencies are not reported as kept for the package that links to it.
 func TestRemoveKeptStopsAtWorkspaceRoots(t *testing.T) {
 	g := testGraph(t, []string{"app", "lib"}, "app>a", "a>lib", "lib>x")
 	r := g.Remove(g.id("a"), false)

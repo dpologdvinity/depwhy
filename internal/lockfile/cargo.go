@@ -9,6 +9,8 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
+// cargoLock is the subset of Cargo.lock that depwhy reads. Dependencies are
+// strings of the form "name", "name version" or "name version (source)".
 type cargoLock struct {
 	Version int `toml:"version"`
 	Package []struct {
@@ -19,7 +21,13 @@ type cargoLock struct {
 	} `toml:"package"`
 }
 
-// ParseCargo parses Cargo.lock (version absent, 3, or 4).
+// ParseCargo parses Cargo.lock (version absent, 3 or 4, SPEC §8.4).
+//
+// Packages without a source are roots. Cargo.lock records no dev or build
+// edges, so every edge is Prod, and a path dependency outside the workspace
+// also lacks a source and shows up as a root. Both are documented limits.
+// A dependency string is matched by name, then version, then source; the first
+// match wins when several remain, with a warning.
 func ParseCargo(path string, data []byte) (*graph.Graph, []string, error) {
 	var lock cargoLock
 	if _, err := toml.Decode(string(data), &lock); err != nil {

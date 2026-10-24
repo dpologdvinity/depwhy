@@ -14,19 +14,25 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
+// pnpmDep is an importer dependency: the range written in package.json and the
+// version pnpm resolved it to.
 type pnpmDep struct{ Specifier, Version string }
 
+// pnpmImporter is a project or workspace member and its direct dependencies.
 type pnpmImporter struct {
 	Dependencies         map[string]pnpmDep `yaml:"dependencies"`
 	DevDependencies      map[string]pnpmDep `yaml:"devDependencies"`
 	OptionalDependencies map[string]pnpmDep `yaml:"optionalDependencies"`
 }
 
+// pnpmSnapshot is one resolved package and what it depends on (name → ref).
 type pnpmSnapshot struct {
 	Dependencies         map[string]string `yaml:"dependencies"`
 	OptionalDependencies map[string]string `yaml:"optionalDependencies"`
 }
 
+// pnpmLock is the subset of pnpm-lock.yaml (lockfileVersion 9) depwhy reads.
+// Packages is only used to check that a snapshot has matching metadata.
 type pnpmLock struct {
 	LockfileVersion string                  `yaml:"lockfileVersion"`
 	Importers       map[string]pnpmImporter `yaml:"importers"`
@@ -34,7 +40,8 @@ type pnpmLock struct {
 	Snapshots       map[string]pnpmSnapshot `yaml:"snapshots"`
 }
 
-// pnpmStrip drops the peer suffix: everything from the first "(".
+// pnpmStrip drops the peer-dependency suffix, which is everything from the first
+// "(": react-dom@18.2.0(react@18.2.0) becomes react-dom@18.2.0.
 func pnpmStrip(key string) string {
 	if i := strings.Index(key, "("); i >= 0 {
 		return key[:i]
@@ -42,7 +49,9 @@ func pnpmStrip(key string) string {
 	return key
 }
 
-// pnpmSplitKey splits a snapshot key or ref into name and version.
+// pnpmSplitKey splits a snapshot key or ref into name and version at the last
+// "@" that is not the first character, so scoped names survive:
+// @babel/core@7.24.0(...) gives "@babel/core" and "7.24.0".
 func pnpmSplitKey(key string) (name, version string) {
 	key = pnpmStrip(key)
 	if i := strings.LastIndex(key, "@"); i > 0 {
@@ -51,6 +60,8 @@ func pnpmSplitKey(key string) (name, version string) {
 	return key, ""
 }
 
+// sortedKeys returns the keys of m in ascending order. Parsers use it so that
+// Go's random map iteration never leaks into the graph.
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -60,7 +71,14 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// ParsePnpm parses pnpm-lock.yaml (lockfileVersion 9.x).
+// ParsePnpm parses pnpm-lock.yaml (lockfileVersion 9.x, SPEC §8.2).
+//
+// Each importer becomes a root, labelled with the name in its package.json
+// (read from next to the lockfile) or else its path. Peer-dependency variants
+// of a package collapse into one node and their edges are merged. link: refs
+// point at other importers, file: refs become nodes named after the dependency,
+// and aliases ("string-width-cjs: string-width@4.2.3") resolve to the real
+// package.
 func ParsePnpm(lockPath string, data []byte) (*graph.Graph, []string, error) {
 	var lock pnpmLock
 	if err := yaml.Unmarshal(data, &lock); err != nil {

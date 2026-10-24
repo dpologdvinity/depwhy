@@ -22,6 +22,7 @@ func edgeStrings(g *graph.Graph) []string {
 	return out
 }
 
+// rootIDs lists the IDs of the graph's roots in order.
 func rootIDs(g *graph.Graph) []string {
 	var out []string
 	for _, r := range g.Roots {
@@ -30,6 +31,7 @@ func rootIDs(g *graph.Graph) []string {
 	return out
 }
 
+// readFixture reads a fixture file or fails the test.
 func readFixture(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -39,6 +41,8 @@ func readFixture(t *testing.T, path string) []byte {
 	return b
 }
 
+// TestNPMResolve checks Node-style resolution: nested installs, hoisted installs,
+// scoped names, walking up from a scoped parent, and following workspace links.
 func TestNPMResolve(t *testing.T) {
 	pkgs := map[string]npmEntry{
 		"":                                 {},
@@ -71,6 +75,7 @@ func TestNPMResolve(t *testing.T) {
 	}
 }
 
+// TestParseNPMMain checks the shared fixture: roots, edges and edge kinds.
 func TestParseNPMMain(t *testing.T) {
 	g, warns, err := ParseNPM("package-lock.json", readFixture(t, "../../testdata/projects/npm/package-lock.json"))
 	if err != nil {
@@ -98,6 +103,8 @@ func TestParseNPMMain(t *testing.T) {
 	}
 }
 
+// TestParseNPMWorkspace checks that workspace members become roots and a link
+// entry resolves to the member it points at.
 func TestParseNPMWorkspace(t *testing.T) {
 	g, warns, err := ParseNPM("p", readFixture(t, "../../testdata/edge/npm-workspace/package-lock.json"))
 	if err != nil {
@@ -118,6 +125,7 @@ func TestParseNPMWorkspace(t *testing.T) {
 	}
 }
 
+// TestParseNPMV1Unsupported checks the error for lockfileVersion 1.
 func TestParseNPMV1Unsupported(t *testing.T) {
 	_, _, err := ParseNPM("package-lock.json", readFixture(t, "../../testdata/edge/npm-v1/package-lock.json"))
 	if err == nil || !strings.Contains(err.Error(), "package-lock.json lockfileVersion 1 is not supported; regenerate it with npm >= 7 (npm install)") {
@@ -128,6 +136,7 @@ func TestParseNPMV1Unsupported(t *testing.T) {
 	}
 }
 
+// TestParseNPMCycle checks that a dependency cycle parses without hanging.
 func TestParseNPMCycle(t *testing.T) {
 	g, _, err := ParseNPM("p", readFixture(t, "../../testdata/edge/cycle/package-lock.json"))
 	if err != nil {
@@ -139,6 +148,8 @@ func TestParseNPMCycle(t *testing.T) {
 	}
 }
 
+// TestParseNPMUnresolvedAndKinds checks the unresolved-dependency warning for prod
+// edges, silence for optional and peer, and the optional edge kind.
 func TestParseNPMUnresolvedAndKinds(t *testing.T) {
 	data := []byte(`{"lockfileVersion":3,"packages":{
 	  "":{"dependencies":{"gone":"*"},"optionalDependencies":{"opt":"*","missingopt":"*"},"peerDependencies":{"nopeer":"*"}},

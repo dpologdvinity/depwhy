@@ -9,6 +9,7 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
+// uvLock is the subset of uv.lock that depwhy reads.
 type uvLock struct {
 	Version  int `toml:"version"`
 	Manifest struct {
@@ -17,6 +18,9 @@ type uvLock struct {
 	Package []uvPackage `toml:"package"`
 }
 
+// uvPackage is one [[package]] table. Source holds exactly one key such as
+// registry, git or virtual; dev-dependencies and optional-dependencies map a
+// group or extra name to its dependencies.
 type uvPackage struct {
 	Name     string             `toml:"name"`
 	Version  string             `toml:"version"`
@@ -26,13 +30,21 @@ type uvPackage struct {
 	Dev      map[string][]uvDep `toml:"dev-dependencies"`
 }
 
+// uvDep is a dependency reference. Version and Source are only present when
+// the lockfile holds several packages with the same name.
 type uvDep struct {
 	Name    string            `toml:"name"`
 	Version string            `toml:"version"`
 	Source  map[string]string `toml:"source"`
 }
 
-// ParseUV parses uv.lock.
+// ParseUV parses uv.lock (SPEC §8.3).
+//
+// Roots are the workspace members listed under [manifest], or else the packages
+// whose source is the project itself ("." as virtual or editable). A dependency
+// is matched by name, narrowed by version and then source; if several packages
+// still match, the first is used and a warning is added. Environment markers
+// are ignored, so every edge counts whatever the platform.
 func ParseUV(path string, data []byte) (*graph.Graph, []string, error) {
 	var lock uvLock
 	if _, err := toml.Decode(string(data), &lock); err != nil {
@@ -104,6 +116,7 @@ func ParseUV(path string, data []byte) (*graph.Graph, []string, error) {
 	return finish(b, warns)
 }
 
+// filterPkgs returns the entries of idx for which keep is true, in order.
 func filterPkgs(idx []int, keep func(int) bool) []int {
 	var out []int
 	for _, i := range idx {

@@ -35,6 +35,9 @@ func synthetic(t testing.TB) *Graph {
 	return g
 }
 
+// TestPerformance guards the spec's speed requirement: Why, Remove and Dupes must
+// each finish in under 200 ms on a 3,000-node graph. It is skipped in short mode
+// and under -race, where timings are meaningless.
 func TestPerformance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short mode")
