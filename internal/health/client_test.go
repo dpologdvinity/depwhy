@@ -25,6 +25,7 @@ type fakeServices struct {
 	pypi      map[string]bool     // "name/version" -> yanked
 	cargo     map[string]bool     // "name/version" -> yanked
 	delay     time.Duration       // sleep before every registry answer
+	waitFor   int32               // hold each registry answer until this many are in flight (or 2 s pass)
 	osvCalls  atomic.Int32        // querybatch requests
 	regCalls  atomic.Int32        // registry requests
 	inFlight  atomic.Int32        // registry requests being served right now
@@ -66,6 +67,9 @@ func (f *fakeServices) registry(r *http.Request) func() {
 		}
 	}
 	time.Sleep(f.delay)
+	for deadline := time.Now().Add(2 * time.Second); f.inFlight.Load() < f.waitFor && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
 	return func() { f.inFlight.Add(-1) }
 }
 
@@ -185,7 +189,7 @@ func TestLookupCombinesAndCaches(t *testing.T) {
 	}
 	want := map[Pkg]Info{
 		{"npm", "lodash", "4.0.0"}: {Advisories: []string{"GHSA-1"}, Deprecated: "old"},
-		{"cargo", "time", "0.1.0"}: {Yanked: true},
+		{"cargo", "time", "0.1.0"}: {Advisories: []string{}, Yanked: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -266,15 +270,15 @@ func TestLookupTimesOut(t *testing.T) {
 // requests are in flight, and that requests really do overlap.
 func TestLookupLimitsConcurrency(t *testing.T) {
 	f, c := newFake(t)
-	f.delay = 20 * time.Millisecond
+	f.waitFor = 3
 	c.Concurrency = 3
 	var pkgs []Pkg
 	for i := 0; i < 12; i++ {
 		pkgs = append(pkgs, Pkg{"cargo", fmt.Sprintf("c%d", i), "1.0.0"})
 	}
 	c.Lookup(context.Background(), pkgs)
-	if m := f.maxFlight.Load(); m > 3 || m < 2 {
-		t.Fatalf("max in flight = %d, want 2..3", m)
+	if m := f.maxFlight.Load(); m != 3 {
+		t.Fatalf("max in flight = %d, want exactly 3 (reached, never exceeded)", m)
 	}
 }
 
@@ -284,5 +288,53 @@ func TestLookupWithNothingToDo(t *testing.T) {
 	got, warns := c.Lookup(context.Background(), []Pkg{{"npm", "x", ""}})
 	if len(got) != 0 || len(warns) != 0 || f.osvCalls.Load() != 0 {
 		t.Fatalf("got %v %v osv=%d", got, warns, f.osvCalls.Load())
+	}
+}
+
+// TestLookableRejectsOddNames checks which packages are never sent to a service.
+func TestLookableRejectsOddNames(t *testing.T) {
+	for _, p := range []Pkg{{"npm", "", "1.0.0"}, {"npm", ".", "1.0.0"}, {"npm", "..", "1.0.0"}, {"npm", "a", ""}, {"npm", "a", "git+ssh://x"}, {"npm", "a", "file:../a"}, {"npm", "a", "1/2"}} {
+		if lookable(p) {
+			t.Errorf("%+v must not be looked up", p)
+		}
+	}
+	if !lookable(Pkg{"npm", "@scope/name", "1.0.0-rc.1+build"}) {
+		t.Error("a normal scoped package must be lookable")
+	}
+}
+
+// TestLookupDistinguishesNoAdvisoriesFromUnknown checks that a completed OSV
+// lookup yields an empty (non-nil) list, while a failed one yields nil, so that
+// callers cannot mistake "could not check" for "clean".
+func TestLookupDistinguishesNoAdvisoriesFromUnknown(t *testing.T) {
+	f, c := newFake(t)
+	p := Pkg{"npm", "clean", "1.0.0"}
+	got, _ := c.Lookup(context.Background(), []Pkg{p})
+	if got[p].Advisories == nil || len(got[p].Advisories) != 0 {
+		t.Fatalf("checked and clean must be an empty non-nil list: %#v", got[p].Advisories)
+	}
+	f.osvFail = true
+	got, _ = c.Lookup(context.Background(), []Pkg{p})
+	if got[p].Advisories != nil {
+		t.Fatalf("unknown must be nil: %#v", got[p].Advisories)
+	}
+}
+
+// TestRedirectPolicy checks that redirects are followed only within the original host.
+func TestRedirectPolicy(t *testing.T) {
+	mk := func(u string) *http.Request { r, _ := http.NewRequest(http.MethodGet, u, nil); return r }
+	first := mk("https://pypi.org/pypi/Foo_Bar/1/json")
+	if err := redirectPolicy(mk("https://pypi.org/pypi/foo-bar/1/json"), []*http.Request{first}); err != nil {
+		t.Fatalf("same-host redirect must be allowed: %v", err)
+	}
+	if err := redirectPolicy(mk("https://evil.example/x"), []*http.Request{first}); err == nil {
+		t.Fatal("cross-host redirect must be refused")
+	}
+	via := make([]*http.Request, 5)
+	for i := range via {
+		via[i] = first
+	}
+	if err := redirectPolicy(mk("https://pypi.org/loop"), via); err == nil {
+		t.Fatal("redirect loops must stop")
 	}
 }

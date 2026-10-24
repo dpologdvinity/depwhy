@@ -56,7 +56,8 @@ func DefaultCacheDir() string {
 // path returns the entry's file. The name is a hash of the package, so scoped
 // names and characters that are invalid in paths are harmless.
 func (c *Cache) path(p Pkg) string {
-	sum := sha256.Sum256([]byte(p.Ecosystem + ":" + p.Name + "@" + p.Version))
+	// NUL cannot occur in a name or version, so different packages never share a key.
+	sum := sha256.Sum256([]byte(p.Ecosystem + "\x00" + p.Name + "\x00" + p.Version))
 	return filepath.Join(c.Dir, hex.EncodeToString(sum[:])+".json")
 }
 
@@ -70,7 +71,12 @@ func (c *Cache) Get(p Pkg) (Info, bool) {
 		return Info{}, false
 	}
 	var f cacheFile
-	if json.Unmarshal(data, &f) != nil || c.Now().Sub(f.Fetched) >= c.TTL {
+	if json.Unmarshal(data, &f) != nil {
+		return Info{}, false
+	}
+	// A negative age means the entry is stamped in the future (clock change or a
+	// hand-edited file); never trust it indefinitely.
+	if age := c.Now().Sub(f.Fetched); age < 0 || age >= c.TTL {
 		return Info{}, false
 	}
 	return f.Info, true

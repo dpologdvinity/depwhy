@@ -39,7 +39,7 @@ c  2 versions
 
 ## Install
 
-With Go 1.23 or newer:
+With Go 1.26 or newer:
 
 ```sh
 go install github.com/dpologdvinity/depwhy@latest
@@ -135,10 +135,12 @@ direct dependency of vuln (prod)
 - Only packages shown in the output are looked up, and answers are cached for 24 hours in `$XDG_CACHE_HOME/depwhy` (or your OS cache directory). `--refresh` skips the cache.
 - Lookups never fail a run. If a service is unreachable you get a warning on stderr, the result is printed without that information, and the exit code is unchanged.
 - Private packages and registries are not supported; a package a public registry does not know is shown without information.
-- In `--json` mode packages gain `advisories`, `deprecated` and `yanked` fields. Without `--online` those keys are absent.
+- In `--json` mode packages gain `advisories`, `deprecated` and `yanked` fields. `advisories` is `[]` for a package that was checked and is clean, and `null` when it could not be checked, so a script never treats an outage as "clean". Without `--online` those keys are absent.
 
 Data sent: the names and versions of the packages shown, to `api.osv.dev` and to the
 public registry for each package's ecosystem. Nothing else leaves your machine.
+That includes the names of any private or internal packages that appear in the
+output, so avoid `--online` on projects whose package names are confidential.
 
 ## Supported lockfiles
 
@@ -223,7 +225,7 @@ lockfile ──parse──▶ graph ──query──▶ result ──render─�
 
 ## Development
 
-You need Go 1.23 or newer.
+You need Go 1.26 or newer.
 
 ```sh
 go build ./...            # compile

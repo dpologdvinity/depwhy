@@ -64,6 +64,7 @@ func (c *Client) osvBatch(ctx context.Context, batch []Pkg) ([][]string, error) 
 	}
 	out := make([][]string, len(batch))
 	for i, r := range resp.Results {
+		out[i] = []string{} // checked: empty means clean, and stays distinct from nil (unknown)
 		seen := map[string]bool{}
 		for _, v := range r.Vulns {
 			if v.ID != "" && !seen[v.ID] {

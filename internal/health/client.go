@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,7 +42,7 @@ type Client struct {
 // in the User-Agent header; refresh bypasses cached answers.
 func New(version string, refresh bool) *Client {
 	c := &Client{
-		HTTP:      &http.Client{},
+		HTTP:      &http.Client{CheckRedirect: redirectPolicy},
 		OSVURL:    osvURL,
 		NPMURL:    npmURL,
 		PyPIURL:   pypiURL,
@@ -53,6 +54,19 @@ func New(version string, refresh bool) *Client {
 		c.Cache = &Cache{Dir: dir, TTL: cacheTTL, Now: time.Now}
 	}
 	return c
+}
+
+// redirectPolicy follows redirects only within the original host. PyPI redirects
+// to a package's canonical name, which is legitimate; a redirect anywhere else
+// is refused, since these services have no reason to send us elsewhere.
+func redirectPolicy(req *http.Request, via []*http.Request) error {
+	if len(via) >= 5 {
+		return errors.New("stopped after 5 redirects")
+	}
+	if req.URL.Host != via[0].URL.Host {
+		return fmt.Errorf("refused redirect to another host (%s)", req.URL.Host)
+	}
+	return nil
 }
 
 // do sends one request with the per-request timeout and decodes a 200 response

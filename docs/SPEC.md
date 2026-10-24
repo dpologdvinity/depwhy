@@ -32,7 +32,7 @@ disagree, the spec wins.
 
 | Item | Choice |
 |---|---|
-| Language | Go (module requires `go 1.23`, builds with any newer toolchain) |
+| Language | Go (module requires `go 1.26`, builds with any newer toolchain; the minimum is raised when a supported release is needed for standard-library security fixes) |
 | Module path | `github.com/dpologdvinity/depwhy` |
 | Flags | `github.com/spf13/pflag` (GNU-style, flags may appear after positional args) |
 | YAML | `go.yaml.in/yaml/v3` (maintained successor of `gopkg.in/yaml.v3`) |
@@ -488,15 +488,18 @@ requests run at once. A 404 from a registry means "no information" and is not a
 warning. Any other failure (network error, timeout, status other than 200 or 404,
 unparsable body) adds a warning `online lookup failed: <what>: <cause>`, and the
 affected packages are shown without that information. Advisory responses are
-trusted only for the package they were asked about, matched by position.
+trusted only for the package they were asked about, matched by position; a
+response with the wrong number of results is a failure. Redirects are followed
+only within the original host. Packages named `.` or `..` are not looked up.
 
 ### 12.5 Cache
 Responses are cached per package in `$XDG_CACHE_HOME/depwhy`, or in
 `os.UserCacheDir()/depwhy` when that is unset. Cache files are named
-`<sha256>.json`, where the hash is computed over `<ecosystem>:<name>@<version>`,
-ensuring cross-platform safety for scoped packages and characters invalid in file
-paths. An entry is valid for 24 hours. A missing, expired or unreadable entry is
-a miss. `--refresh` skips reads. A failure to write the cache is ignored. Failed
+`<sha256>.json`, where the hash is computed over the ecosystem, name and version
+joined by NUL bytes, ensuring cross-platform safety for scoped packages and
+characters invalid in file paths, and that different packages never share an entry.
+An entry is valid for 24 hours. A missing, expired, future-dated or unreadable
+entry is a miss. `--refresh` skips reads. A failure to write the cache is ignored. Failed
 lookups are never cached.
 
 ### 12.6 Text output
@@ -505,6 +508,9 @@ After a package's `name@version`, add the findings separated by two spaces:
 deprecated npm package, and `[yanked]` for a yanked Python or Rust package. This
 applies to the heading and every package line in why trees, the freed and kept
 lists of `--remove`, and the version lines of `--dupes`. Roots are never annotated.
+Text from the services is shown only after control and invisible formatting
+characters are removed and whitespace is collapsed; a deprecation message is cut at
+80 characters.
 
 ```
 d@1.0.0  npm · package-lock.json  ⚠ GHSA-xxxx-xxxx-xxxx
@@ -516,8 +522,11 @@ Color: advisories red, deprecated and yanked yellow, when color is enabled.
 
 ### 12.7 JSON output
 With `--online`, each package object (`package`, `freed[]`, `kept[]`, and dupes
-`versions[]`) gains `"advisories": [...]` (always present, possibly empty),
-`"deprecated": "<message>"` or `null`, and `"yanked": true|false`. Warnings from
+`versions[]`) gains `"advisories"`, `"deprecated": "<message>"` or `null`, and
+`"yanked": true|false`. `advisories` is a list of IDs, empty `[]` for a package that
+was checked and has none, and `null` for one that could not be checked (a failed
+lookup, or a version that is not looked up), so a script never mistakes "unchecked"
+for "clean". Warnings from
 lookups are added to `warnings`. Without `--online` these keys are absent.
 These additions are backward-compatible; `schema` remains `1` both with and
 without `--online`.

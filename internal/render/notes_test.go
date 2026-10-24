@@ -96,7 +96,7 @@ func TestRemoveAndDupesTextShowNotes(t *testing.T) {
 // are absent when offline (nil Notes).
 func TestJSONHealthFields(t *testing.T) {
 	g := npmGraph(t)
-	notes := notesFor(t, g, map[string]Note{"a@1.0.0": {Advisories: []string{"GHSA-a"}, Deprecated: "old"}, "d@1.0.0": {}})
+	notes := notesFor(t, g, map[string]Note{"a@1.0.0": {Advisories: []string{"GHSA-a"}, Deprecated: "old"}, "d@1.0.0": {Advisories: []string{}}, "c@1.0.0": {Advisories: []string{}}})
 	encode := func(n Notes) string {
 		doc := NewDoc("remove", &Query{Name: "a"})
 		doc.Add(RemoveJSON(g, g.Remove(find(t, g, "a@1.0.0"), false), n))
@@ -139,8 +139,8 @@ func TestJSONHealthFields(t *testing.T) {
 	if _, has := r.Kept[0].Via["advisories"]; has {
 		t.Fatal("via is a reference and carries no findings")
 	}
-	if !strings.Contains(encode(Notes{}), `"advisories": []`) {
-		t.Fatal("online with no findings must still print advisories: []")
+	if !strings.Contains(encode(notes), `"advisories": []`) {
+		t.Fatal("a checked, clean package must print advisories: []")
 	}
 
 	offline := encode(nil)
@@ -148,5 +148,36 @@ func TestJSONHealthFields(t *testing.T) {
 		if strings.Contains(offline, key) {
 			t.Errorf("offline JSON contains %q:\n%s", key, offline)
 		}
+	}
+}
+
+// TestJSONAdvisoriesAreNullWhenUnknown checks that a package that could not be
+// checked (no entry, or advisories unknown) reports null, not an empty list, so
+// scripts cannot mistake "unchecked" for "clean".
+func TestJSONAdvisoriesAreNullWhenUnknown(t *testing.T) {
+	g := npmGraph(t)
+	doc := NewDoc("why", &Query{Name: "d"})
+	doc.Add(WhyJSON(g, g.Why(find(t, g, "d@1.0.0"), graph.WhyOpts{}), Notes{}))
+	var buf bytes.Buffer
+	if err := doc.Encode(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `"advisories": null`) {
+		t.Fatalf("want advisories: null:\n%s", buf.String())
+	}
+}
+
+// TestNoteTextDropsControlCharacters checks that registry-supplied text cannot
+// inject terminal escape sequences.
+func TestNoteTextDropsControlCharacters(t *testing.T) {
+	evil := Note{Advisories: []string{"GHSA-\x1b[2Jx"}, Deprecated: "bad \x1b]0;title\x07 \u202e text \x7f end"}
+	got := Style{Notes: Notes{0: evil}}.suffix(0)
+	for _, r := range got {
+		if r == 0x1b || r == 0x07 || r == 0x7f || r == 0x202e {
+			t.Fatalf("control character %U survived: %q", r, got)
+		}
+	}
+	if !strings.Contains(got, "GHSA-[2Jx") || !strings.Contains(got, "bad ]0;title text end") {
+		t.Fatalf("printable text should remain: %q", got)
 	}
 }

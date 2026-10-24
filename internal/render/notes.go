@@ -2,6 +2,7 @@ package render
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -30,7 +31,11 @@ func (s Style) suffix(node int) string {
 	}
 	var sb strings.Builder
 	if len(n.Advisories) > 0 {
-		sb.WriteString("  " + s.Red("⚠ "+strings.Join(n.Advisories, ", ")))
+		ids := make([]string, len(n.Advisories))
+		for i, id := range n.Advisories {
+			ids[i] = printable(id)
+		}
+		sb.WriteString("  " + s.Red("⚠ "+strings.Join(ids, ", ")))
 	}
 	if n.Deprecated != "" {
 		sb.WriteString("  " + s.Yellow("[deprecated: "+tidy(n.Deprecated)+"]"))
@@ -41,10 +46,28 @@ func (s Style) suffix(node int) string {
 	return sb.String()
 }
 
-// tidy collapses all whitespace runs (including newlines) to single spaces and
-// shortens the message to maxDeprecation characters.
+// printable turns every whitespace character into a plain space and removes
+// control and invisible formatting characters (escape sequences, DEL,
+// bidirectional overrides). Advisory IDs and deprecation messages
+// come from public services that anyone can write to, and must not be able to
+// drive the user's terminal.
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case unicode.IsSpace(r):
+			return ' '
+		case unicode.IsControl(r), unicode.Is(unicode.Cf, r):
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// tidy makes a deprecation message safe for one line of terminal output: it
+// drops non-printable characters, collapses whitespace runs (including
+// newlines) to single spaces, and shortens it to maxDeprecation characters.
 func tidy(msg string) string {
-	msg = strings.Join(strings.Fields(msg), " ")
+	msg = strings.Join(strings.Fields(printable(msg)), " ")
 	if utf8.RuneCountInString(msg) <= maxDeprecation {
 		return msg
 	}

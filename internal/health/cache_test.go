@@ -93,3 +93,29 @@ func TestDefaultCacheDirPrefersXDG(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// TestCacheIgnoresFutureEntries checks that an entry stamped in the future (clock
+// skew or a hand-edited file) is a miss rather than being trusted indefinitely.
+func TestCacheIgnoresFutureEntries(t *testing.T) {
+	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
+	c := &Cache{Dir: t.TempDir(), TTL: time.Hour, Now: func() time.Time { return now.Add(48 * time.Hour) }}
+	p := Pkg{"npm", "a", "1"}
+	c.Put(p, Info{})
+	c.Now = func() time.Time { return now }
+	if _, ok := c.Get(p); ok {
+		t.Fatal("an entry from the future must be a miss")
+	}
+}
+
+// TestCacheKeysDoNotCollide checks that moving the "@" between name and version
+// gives a different entry.
+func TestCacheKeysDoNotCollide(t *testing.T) {
+	c := &Cache{Dir: t.TempDir(), TTL: time.Hour, Now: time.Now}
+	c.Put(Pkg{"npm", "a@b", "c"}, Info{Yanked: true})
+	if _, ok := c.Get(Pkg{"npm", "a", "b@c"}); ok {
+		t.Fatal("different packages must not share an entry")
+	}
+	if _, ok := c.Get(Pkg{"npm", "a@b", "c"}); !ok {
+		t.Fatal("the stored package must still hit")
+	}
+}

@@ -77,13 +77,18 @@ type healthJSON struct {
 }
 
 // health returns the online fields for a node, or nil when the run was offline.
-// Advisories is never nil, so it encodes as [] rather than null.
+// Advisories is [] for a package that was checked and is clean, and null for one
+// that could not be checked (a failed lookup, or a version no service knows), so
+// a script never mistakes "unchecked" for "clean".
 func (n Notes) health(node int) *healthJSON {
 	if n == nil {
 		return nil
 	}
 	note := n[node]
-	h := &healthJSON{Advisories: append([]string{}, note.Advisories...), Yanked: note.Yanked}
+	h := &healthJSON{Yanked: note.Yanked}
+	if note.Advisories != nil { // nil means "could not be checked": encode null, not []
+		h.Advisories = append([]string{}, note.Advisories...)
+	}
 	if note.Deprecated != "" {
 		h.Deprecated = &note.Deprecated
 	}

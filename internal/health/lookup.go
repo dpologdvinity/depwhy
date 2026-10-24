@@ -8,10 +8,12 @@ import (
 	"sync"
 )
 
-// lookable reports whether p can be asked about: it needs a registry version.
-// Versions such as "file:../x" or "git/abc" name no published release.
+// lookable reports whether p can be asked about: it needs a name and a registry
+// version. Versions such as "file:../x" or "git/abc" name no published release,
+// and "." or ".." would turn into a path to another registry URL.
 func lookable(p Pkg) bool {
-	return p.Version != "" && !strings.ContainsAny(p.Version, ":/")
+	return p.Name != "" && p.Name != "." && p.Name != ".." &&
+		p.Version != "" && !strings.ContainsAny(p.Version, ":/")
 }
 
 // Lookup returns what is known online about each package. Packages that cannot be
