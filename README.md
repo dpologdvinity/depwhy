@@ -55,7 +55,17 @@ With Homebrew on macOS or Linux:
 brew install dpologdvinity/tap/depwhy
 ```
 
-Or download a binary for Linux, macOS, or Windows (amd64 and arm64) from the
+On Debian, Ubuntu and derivatives (amd64 and arm64), through the signed apt repository:
+
+```sh
+sudo install -d -m 0755 /usr/share/keyrings
+curl -fsSL https://dpologdvinity.github.io/depwhy/key.gpg | sudo tee /usr/share/keyrings/depwhy.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/depwhy.gpg] https://dpologdvinity.github.io/depwhy/apt ./" | sudo tee /etc/apt/sources.list.d/depwhy.list
+sudo apt update && sudo apt install depwhy
+```
+
+Or download a binary, a `.deb`, `.rpm` or `.apk` package for Linux, a binary for macOS or
+Windows (amd64 and arm64) from the
 [releases page](https://github.com/dpologdvinity/depwhy/releases).
 
 Check the install with `depwhy --version`.
