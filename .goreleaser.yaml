@@ -52,3 +52,17 @@ homebrew_casks:
           on_macos do
             run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/depwhy"]
           end
+
+# Linux packages. The .deb files are what the apt repository serves (see
+# scripts/build-apt-repo.sh and the "apt" job in .github/workflows/release.yml);
+# .rpm and .apk are attached to the release for other distributions.
+nfpms:
+  - id: packages
+    package_name: depwhy
+    formats: [deb, rpm, apk]
+    maintainer: dpologdvinity <dpologdvinity@users.noreply.github.com>
+    homepage: https://github.com/dpologdvinity/depwhy
+    description: Explains why a package is in your dependency tree, from the lockfile.
+    license: MIT
+    section: devel
+    bindir: /usr/bin

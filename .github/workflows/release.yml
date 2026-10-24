@@ -48,3 +48,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+  # Publishes the apt repository from the .deb files of every stable release (see
+  # apt.yml). Pre-release tags (v1.0.0-rc.1) do not update it.
+  apt:
+    needs: goreleaser
+    if: ${{ !contains(github.ref_name, '-') }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/apt.yml
+    secrets: inherit

@@ -1,0 +1,65 @@
+name: apt
+
+# Builds, signs and publishes the apt repository at
+# https://dpologdvinity.github.io/depwhy/apt from the .deb files attached to every
+# stable GitHub release, so older versions stay installable.
+#
+# Runs after each release (called from release.yml) and can be run by hand from
+# the Actions tab to republish, for example after rotating the signing key.
+# It needs the APT_GPG_PRIVATE_KEY secret; without it the job is skipped with a
+# warning and nothing else is affected.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # download release assets
+      pages: write # deploy the site
+      id-token: write # prove to Pages that this workflow is the deployer
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: signing key present?
+        id: key
+        run: |
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::APT_GPG_PRIVATE_KEY is not set; the apt repository was not updated."
+          fi
+      - if: steps.key.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: install packaging tools
+        if: steps.key.outputs.enabled == 'true'
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils
+      - name: download the .deb files of every stable release
+        if: steps.key.outputs.enabled == 'true'
+        run: |
+          mkdir debs
+          for tag in $(gh release list --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName'); do
+            gh release download "$tag" --pattern '*.deb' --dir debs --clobber || true
+          done
+          ls debs
+      - name: build and sign the repository
+        if: steps.key.outputs.enabled == 'true'
+        run: |
+          printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
+          scripts/build-apt-repo.sh debs site "$fingerprint"
+      - if: steps.key.outputs.enabled == 'true'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - if: steps.key.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - if: steps.key.outputs.enabled == 'true'
+        id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

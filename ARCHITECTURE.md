@@ -337,6 +337,32 @@ Conventional Commit messages. It also commits a Homebrew cask to
 `HOMEBREW_TAP_GITHUB_TOKEN` secret; pre-release tags skip that step. Tags with a suffix such as `-rc.1` are published as
 pre-releases.
 
+### Distribution channels
+
+| Channel | How it is produced |
+|---|---|
+| GitHub release archives, checksums | GoReleaser (`archives`, `checksum`) |
+| `go install` | the module itself; the version comes from the embedded module info |
+| Homebrew | GoReleaser commits `Casks/depwhy.rb` to `dpologdvinity/homebrew-tap` |
+| `.deb`, `.rpm`, `.apk` | GoReleaser `nfpms`, attached to the release |
+| apt repository | `apt.yml`, described below |
+
+**The apt repository** is a signed *flat* repository served from GitHub Pages at
+`https://dpologdvinity.github.io/depwhy/apt`. Its state is derived, not stored:
+`apt.yml` downloads the `.deb` files of every stable release, and
+`scripts/build-apt-repo.sh` rebuilds the indexes from scratch (`dpkg-scanpackages
+--multiversion`, so old versions stay installable), writes a `Release` file with
+`apt-ftparchive`, and signs it (`Release.gpg` and a clear-signed `InRelease`). The
+public key is published next to it as `key.gpg`. The private key lives only in the
+`APT_GPG_PRIVATE_KEY` Actions secret. Because the site is rebuilt from the releases
+every time, there is no branch of generated files to keep in sync, and republishing
+(for example after a key rotation) is one manual run of the `apt` workflow.
+
+CI proves the pipeline on every change: it builds a repository from the snapshot
+`.deb` files with a throwaway key, installs from it in a clean Debian container, and
+checks that a tampered index is rejected (`scripts/test-apt-repo.sh`). Pre-release
+tags (`-rc.1`) never touch the repository.
+
 Dependabot keeps Go modules and the pinned Actions up to date.
 
 ## Design decisions
