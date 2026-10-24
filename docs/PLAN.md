@@ -501,3 +501,57 @@ Commit: `docs: add readme` then `ci: add test and release workflows`
 1. Run `depwhy` against one real project per ecosystem (any local project, or a freshly generated one: `npm init -y && npm i express`, `uv init && uv add requests`, `cargo new x && cargo add serde`). Check that the output makes sense against `npm ls <pkg>`, `uv tree --invert --package <pkg>`, and `cargo tree -i <pkg>`.
 2. Record any discrepancy as a test plus a fix before release.
 3. Tag `v0.1.0` **only when the maintainer asks**. Don't push or tag without explicit approval.
+
+---
+
+# v0.2 plan: online health information
+
+Behavior is defined in `docs/SPEC.md` §12. Same rules as above: tasks in order, test
+first, `gofmt -l .`, `go vet ./...`, `golangci-lint run ./...` and `go test -race ./...`
+clean before each commit, Conventional Commits. No test may touch the internet.
+
+## Task 17: health package, cache
+
+Files: `internal/health/cache.go`, `internal/health/cache_test.go`
+
+`Pkg`, `Info`, and a file `Cache` (`Get`, `Put`, 24 h TTL, SHA-256 file names, atomic
+writes, unreadable entry = miss) plus `DefaultCacheDir`.
+Commit: `feat(health): add on-disk response cache`
+
+## Task 18: advisories client
+
+Files: `internal/health/osv.go`, `internal/health/osv_test.go`
+
+OSV `querybatch` in chunks of 1,000, with result-count checking, against an
+`httptest` server.
+Commit: `feat(health): look up advisories through OSV`
+
+## Task 19: deprecation and yank clients, Lookup
+
+Files: `internal/health/status.go`, `internal/health/client.go`, tests
+
+npm, PyPI and crates.io status lookups (404 = no info, scoped names, User-Agent), and
+`Client.Lookup`, which dedupes, skips unlookable versions, uses the cache, runs at
+most 8 requests at once with a 5 s timeout each, and aggregates failures into
+warnings.
+Commit: `feat(health): look up deprecated and yanked status`
+
+## Task 20: rendering
+
+Files: `internal/render/notes.go`, `text.go`, `json.go`, tests
+
+`render.Notes` carried on `Style` for text and passed to the JSON builders.
+Commit: `feat(render): show advisories and deprecation notes`
+
+## Task 21: CLI wiring and goldens
+
+Files: `internal/cli/cli.go`, `internal/cli/online_test.go`, docs
+
+`--online` and `--refresh`, collecting the shown packages, warnings, byte-identical
+offline output, and golden cases against a fake service.
+Commit: `feat(cli): add --online and --refresh`
+
+## Task 22: docs, review, release
+
+README, ARCHITECTURE, ROADMAP; a manual run against the real services; whole-branch
+review; tag `v0.2.0`.

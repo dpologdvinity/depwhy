@@ -224,7 +224,7 @@ c  2 versions
 func TestJSONWhy(t *testing.T) {
 	g := npmGraph(t)
 	doc := NewDoc("why", &Query{Name: "c"})
-	doc.Add(WhyJSON(g, g.Why(find(t, g, "c@1.0.0"), graph.WhyOpts{})))
+	doc.Add(WhyJSON(g, g.Why(find(t, g, "c@1.0.0"), graph.WhyOpts{}), nil))
 	var buf bytes.Buffer
 	if err := doc.Encode(&buf); err != nil {
 		t.Fatal(err)
@@ -279,7 +279,7 @@ func TestJSONNotFoundRemoveDupes(t *testing.T) {
 
 	g := npmGraph(t)
 	doc = NewDoc("remove", &Query{Name: "a", Version: "1.0.0"})
-	doc.Add(RemoveJSON(g, g.Remove(find(t, g, "a@1.0.0"), false)))
+	doc.Add(RemoveJSON(g, g.Remove(find(t, g, "a@1.0.0"), false), nil))
 	buf.Reset()
 	if err := doc.Encode(&buf); err != nil {
 		t.Fatal(err)
@@ -306,7 +306,7 @@ func TestJSONNotFoundRemoveDupes(t *testing.T) {
 	}
 
 	doc = NewDoc("dupes", nil)
-	doc.Add(DupesJSON(g, g.Dupes(false)))
+	doc.Add(DupesJSON(g, g.Dupes(false), nil))
 	buf.Reset()
 	if err := doc.Encode(&buf); err != nil {
 		t.Fatal(err)

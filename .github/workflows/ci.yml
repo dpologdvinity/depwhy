@@ -122,9 +122,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version-file: go.mod
+          # Always build and scan with the newest patched toolchain: the binary embeds
+          # the Go standard library (including net/http and TLS).
+          go-version: stable
+          check-latest: true
           cache: true
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   # 4. Build every release artifact (all OS/arch targets) without publishing, so
   #    release-config mistakes surface here and not on a tag. Runs only after
@@ -140,7 +143,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version-file: go.mod
+          # Always build and scan with the newest patched toolchain: the binary embeds
+          # the Go standard library (including net/http and TLS).
+          go-version: stable
+          check-latest: true
           cache: true
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:

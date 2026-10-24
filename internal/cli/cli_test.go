@@ -51,6 +51,28 @@ var update = flag.Bool("update", false, "rewrite golden files")
 // nonAlnum strips punctuation from arguments when deriving golden file names.
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
+// checkGolden compares got with testdata/golden/<name>, or rewrites the file
+// when -update is set.
+func checkGolden(t *testing.T, name, got string) {
+	t.Helper()
+	golden := filepath.Join("..", "..", "testdata", "golden", name)
+	if *update {
+		if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatalf("missing golden (run with -update): %v", err)
+	}
+	if got != string(want) {
+		t.Errorf("golden mismatch for %s\n--- got\n%s\n--- want\n%s", name, got, want)
+	}
+}
+
 // stageFixture copies a fixture dir into a temp dir. A trailing ".fixture" is
 // dropped, so lockfiles can be stored as uv.lock.fixture and Cargo.lock.fixture.
 func stageFixture(t *testing.T, src string) string {
@@ -105,22 +127,7 @@ func TestGolden(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				code, out, errs := run(append([]string{"-C", dir, "--no-color"}, args...)...)
 				got := fmt.Sprintf("%s\n--- stderr\n%s\n--- exit=%d\n", out, errs, code)
-				golden := filepath.Join("..", "..", "testdata", "golden", name)
-				if *update {
-					if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
-						t.Fatal(err)
-					}
-					if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
-						t.Fatal(err)
-					}
-				}
-				want, err := os.ReadFile(golden)
-				if err != nil {
-					t.Fatalf("missing golden (run with -update): %v", err)
-				}
-				if got != string(want) {
-					t.Errorf("golden mismatch for %v\n--- got\n%s\n--- want\n%s", args, got, want)
-				}
+				checkGolden(t, name, got)
 			})
 		}
 	}

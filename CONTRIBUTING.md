@@ -8,7 +8,7 @@ spec in the same pull request.
 
 ## Setup
 
-You need Go 1.23 or newer. Optional tools: `golangci-lint` v2 for linting and
+You need Go 1.26 or newer. Optional tools: `golangci-lint` v2 for linting and
 `goreleaser` for checking release builds.
 
 ```sh

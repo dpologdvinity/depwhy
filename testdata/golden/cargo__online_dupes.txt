@@ -1,0 +1,8 @@
+cargo · Cargo.lock
+c  2 versions
+  1.0.0  [yanked]  via a (prod)
+  2.0.0  ⚠ GHSA-cccc-0002, RUSTSEC-0000-0002  via b (prod)
+
+--- stderr
+
+--- exit=0

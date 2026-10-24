@@ -8,7 +8,10 @@
 // one version. The package imports only the standard library.
 package graph
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 // Kind says why an edge exists, taken from the field that declared it.
 type Kind uint8
@@ -46,8 +49,8 @@ type Edge struct {
 }
 
 // Graph is the dependency graph of one lockfile. Treat it as read-only once
-// Build has returned it; query results are cached on it. It is not safe for
-// concurrent use.
+// Build has returned it; cached query results use sync.Once, making Graph safe
+// for concurrent reads.
 //
 // Invariants kept by Builder: node IDs are unique, In mirrors Out exactly,
 // there are no duplicate (From, To, Kind) edges, and Roots is not empty.
@@ -59,7 +62,9 @@ type Graph struct {
 	In        [][]Edge // In[i] lists the edges entering node i
 	Roots     []int    // indexes of root nodes, in lockfile order
 
-	devOnly     []bool      // cache for DevOnly
+	devOnce     sync.Once
+	devOnly     []bool // cache for DevOnly
+	parentOnce  [2]sync.Once
 	parentCache [2][][]Edge // cache for parents; index 1 is the prod variant
 }
 

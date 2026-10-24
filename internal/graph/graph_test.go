@@ -1,6 +1,9 @@
 package graph
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 // TestBuilderDedupesNodes checks that Node and Root return the same index for the
 // same ID and different indexes for different versions.
@@ -64,4 +67,32 @@ func TestKindString(t *testing.T) {
 			t.Errorf("%d = %q", k, k.String())
 		}
 	}
+}
+
+// TestConcurrentReads verifies that concurrent queries and cache initializations
+// on a Graph are race-free.
+func TestConcurrentReads(t *testing.T) {
+	b := NewBuilder("npm", "x")
+	r := b.Root("app", "1.0.0")
+	a := b.Node("a", "1.0.0")
+	c := b.Node("c", "1.0.0")
+	b.Edge(r, a, Prod)
+	b.Edge(a, c, Prod)
+	g, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func(prod bool) {
+			defer wg.Done()
+			_ = g.DevOnly()
+			_ = g.Why(c, WhyOpts{Prod: prod})
+			_ = g.Remove(a, prod)
+			_ = g.Dupes(prod)
+		}(i%2 == 0)
+	}
+	wg.Wait()
 }

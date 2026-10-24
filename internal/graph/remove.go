@@ -64,7 +64,7 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 		stack = stack[:len(stack)-1]
 		for _, e := range g.Out[n] {
 			// Workspace members keep their own dependencies; they are not "kept" for t.
-			if seen[e.To] || g.Nodes[e.To].Root || (prod && e.Kind == Dev && g.Nodes[n].Root) {
+			if seen[e.To] || g.Nodes[e.To].Root {
 				continue
 			}
 			seen[e.To] = true

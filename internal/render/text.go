@@ -60,7 +60,7 @@ func rootOf(l graph.Lead) int { return l.Root }
 
 // WhyText prints one reverse tree, with a footer summarizing the direct dependencies.
 func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style) {
-	fmt.Fprintln(w, s.Bold(fmt.Sprintf("%s  %s", pkgID(g, r.Target), source(g))))
+	fmt.Fprintln(w, s.Bold(fmt.Sprintf("%s  %s", pkgID(g, r.Target), source(g)))+s.suffix(r.Target))
 	kids := append([]*graph.TreeNode(nil), r.Tree.Children...)
 	if r.MorePaths != "" {
 		kids = append(kids, &graph.TreeNode{Node: nodeMore, Marker: fmt.Sprintf("… %s more paths (use --all)", r.MorePaths)})
@@ -104,9 +104,9 @@ func treeLabel(g *graph.Graph, k *graph.TreeNode, s Style) string {
 	case g.Nodes[k.Node].Root:
 		return fmt.Sprintf("%s (root, %s)", s.Cyan(g.Nodes[k.Node].Name), s.kind(k.Kind))
 	case k.Marker != "":
-		return pkgID(g, k.Node) + " " + s.Dim(k.Marker)
+		return pkgID(g, k.Node) + s.suffix(k.Node) + " " + s.Dim(k.Marker)
 	}
-	return pkgID(g, k.Node)
+	return pkgID(g, k.Node) + s.suffix(k.Node)
 }
 
 // RemoveText prints the impact of removing a direct dependency.
@@ -128,16 +128,16 @@ func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style) {
 	} else {
 		fmt.Fprintf(w, "would remove %s:\n", plural(len(r.Freed), "package"))
 		for _, n := range r.Freed {
-			fmt.Fprintf(w, "  %s\n", pkgID(g, n))
+			fmt.Fprintf(w, "  %s%s\n", pkgID(g, n), s.suffix(n))
 		}
 	}
 	if len(r.Kept) > 0 {
 		fmt.Fprintf(w, "still needed by others (%d):\n", len(r.Kept))
 		for _, k := range r.Kept {
 			if k.Via == k.Node {
-				fmt.Fprintf(w, "  %s  (also a direct dependency)\n", pkgID(g, k.Node))
+				fmt.Fprintf(w, "  %s%s  (also a direct dependency)\n", pkgID(g, k.Node), s.suffix(k.Node))
 			} else {
-				fmt.Fprintf(w, "  %s  via %s\n", pkgID(g, k.Node), pkgID(g, k.Via))
+				fmt.Fprintf(w, "  %s%s  via %s\n", pkgID(g, k.Node), s.suffix(k.Node), pkgID(g, k.Via))
 			}
 		}
 	}
@@ -156,7 +156,7 @@ func DupesText(w io.Writer, g *graph.Graph, ds []graph.Dupe, s Style) {
 	for _, d := range ds {
 		fmt.Fprintf(w, "%s  %s\n", d.Name, plural(len(d.Versions), "version"))
 		for _, v := range d.Versions {
-			fmt.Fprintf(w, "  %s  via %s\n", g.Nodes[v.Node].Version, leadText(g, v.Leads, s, directOf))
+			fmt.Fprintf(w, "  %s%s  via %s\n", g.Nodes[v.Node].Version, s.suffix(v.Node), leadText(g, v.Leads, s, directOf))
 		}
 	}
 }

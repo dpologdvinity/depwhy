@@ -65,6 +65,34 @@ func (d *Doc) Encode(w io.Writer) error {
 type pkgJSON struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	*healthJSON
+}
+
+// healthJSON is the --online addition to a package object. It is embedded by
+// pointer, so offline output has none of these keys.
+type healthJSON struct {
+	Advisories []string `json:"advisories"`
+	Deprecated *string  `json:"deprecated"`
+	Yanked     bool     `json:"yanked"`
+}
+
+// health returns the online fields for a node, or nil when the run was offline.
+// Advisories is [] for a package that was checked and is clean, and null for one
+// that could not be checked (a failed lookup, or a version no service knows), so
+// a script never mistakes "unchecked" for "clean".
+func (n Notes) health(node int) *healthJSON {
+	if n == nil {
+		return nil
+	}
+	note := n[node]
+	h := &healthJSON{Yanked: note.Yanked}
+	if note.Advisories != nil { // nil means "could not be checked": encode null, not []
+		h.Advisories = append([]string{}, note.Advisories...)
+	}
+	if note.Deprecated != "" {
+		h.Deprecated = &note.Deprecated
+	}
+	return h
 }
 
 // leadJSON is a Lead: the root, the direct dependency, and the edge kind.
@@ -98,9 +126,10 @@ type whyJSON struct {
 
 // keptJSON is a package that stays after a removal, and the package keeping it.
 type keptJSON struct {
-	Name    string  `json:"name"`
-	Version string  `json:"version"`
-	Via     pkgJSON `json:"via"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	*healthJSON
+	Via pkgJSON `json:"via"`
 }
 
 // removeJSON is one result of remove mode.
@@ -117,8 +146,9 @@ type removeJSON struct {
 
 // dupeVersionJSON is one version of a duplicated package.
 type dupeVersionJSON struct {
-	Version string     `json:"version"`
-	Leads   []leadJSON `json:"leads"`
+	Version string `json:"version"`
+	*healthJSON
+	Leads []leadJSON `json:"leads"`
 }
 
 // dupeJSON is a package installed at several versions.
@@ -136,7 +166,14 @@ type dupesJSON struct {
 
 // pkg converts a node to its JSON name/version pair.
 func pkg(g *graph.Graph, n int) pkgJSON {
-	return pkgJSON{g.Nodes[n].Name, g.Nodes[n].Version}
+	return pkgJSON{Name: g.Nodes[n].Name, Version: g.Nodes[n].Version}
+}
+
+// pkgWith is pkg plus the online findings for the node (none when notes is nil).
+func pkgWith(g *graph.Graph, n int, notes Notes) pkgJSON {
+	p := pkg(g, n)
+	p.healthJSON = notes.health(n)
+	return p
 }
 
 // leadsJSON converts leads, returning an empty non-nil slice when there are none.
@@ -149,7 +186,7 @@ func leadsJSON(g *graph.Graph, ls []graph.Lead) []leadJSON {
 }
 
 // WhyJSON builds one why result entry.
-func WhyJSON(g *graph.Graph, r graph.WhyResult) any {
+func WhyJSON(g *graph.Graph, r graph.WhyResult, notes Notes) any {
 	paths := make([][]stepJSON, 0, len(r.Paths))
 	for _, p := range r.Paths {
 		steps := make([]stepJSON, 0, len(p))
@@ -165,33 +202,33 @@ func WhyJSON(g *graph.Graph, r graph.WhyResult) any {
 		}
 		paths = append(paths, steps)
 	}
-	return whyJSON{g.Ecosystem, filepath.Base(g.Lockfile), pkg(g, r.Target), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
+	return whyJSON{g.Ecosystem, filepath.Base(g.Lockfile), pkgWith(g, r.Target, notes), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
 }
 
 // RemoveJSON builds one remove result entry.
-func RemoveJSON(g *graph.Graph, r graph.RemoveResult) any {
+func RemoveJSON(g *graph.Graph, r graph.RemoveResult, notes Notes) any {
 	out := removeJSON{
-		Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Package: pkg(g, r.Target),
+		Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Package: pkgWith(g, r.Target, notes),
 		Direct: !r.NotDirect, StillNeeded: r.StillNeeded,
 		Freed: []pkgJSON{}, Kept: []keptJSON{}, RequiredBy: leadsJSON(g, r.RequiredBy),
 	}
 	for _, n := range r.Freed {
-		out.Freed = append(out.Freed, pkg(g, n))
+		out.Freed = append(out.Freed, pkgWith(g, n, notes))
 	}
 	for _, k := range r.Kept {
 		p := pkg(g, k.Node)
-		out.Kept = append(out.Kept, keptJSON{p.Name, p.Version, pkg(g, k.Via)})
+		out.Kept = append(out.Kept, keptJSON{p.Name, p.Version, notes.health(k.Node), pkg(g, k.Via)})
 	}
 	return out
 }
 
 // DupesJSON builds one dupes result entry.
-func DupesJSON(g *graph.Graph, ds []graph.Dupe) any {
+func DupesJSON(g *graph.Graph, ds []graph.Dupe, notes Notes) any {
 	out := dupesJSON{Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Dupes: []dupeJSON{}}
 	for _, d := range ds {
 		dj := dupeJSON{Name: d.Name, Versions: []dupeVersionJSON{}}
 		for _, v := range d.Versions {
-			dj.Versions = append(dj.Versions, dupeVersionJSON{g.Nodes[v.Node].Version, leadsJSON(g, v.Leads)})
+			dj.Versions = append(dj.Versions, dupeVersionJSON{g.Nodes[v.Node].Version, notes.health(v.Node), leadsJSON(g, v.Leads)})
 		}
 		out.Dupes = append(out.Dupes, dj)
 	}
