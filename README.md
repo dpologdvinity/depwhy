@@ -33,7 +33,8 @@ c  2 versions
 - **Remove**: what would leave the tree if you removed a direct dependency, and what would stay and why. It is a dry run; nothing is modified.
 - **Dupes**: packages installed at more than one version, and which direct dependencies pull in each.
 - **Polyglot**: if a directory holds lockfiles for several ecosystems, all of them are loaded and searched.
-- **Offline and read-only**: no network, no package manager needed, no files changed.
+- **Offline by default, read-only always**: no network unless you pass `--online`, no package manager needed, no lockfile or manifest changed.
+- **Health info (opt-in)**: with `--online`, packages show known security advisories and deprecated or yanked status.
 - **Scriptable**: `--json` gives a stable, documented output.
 
 ## Install
@@ -92,6 +93,8 @@ for Cargo. If nothing matches, depwhy suggests close names.
 | `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). |
 | `--all` | Print all paths without the 10-path cap. |
 | `--json` | Emit JSON. |
+| `--online` | Look up security advisories (OSV) and deprecated/yanked status. This is the only flag that uses the network. |
+| `--refresh` | With `--online`, ignore cached answers. |
 | `--no-color` | Disable ANSI color. Color is also off when output is not a terminal or `NO_COLOR` is set. |
 | `-V`, `--version` | Print the version. |
 | `-h`, `--help` | Print usage. |
@@ -115,6 +118,28 @@ for Cargo. If nothing matches, depwhy suggests close names.
 Errors and warnings go to stderr as `depwhy: ...` and `depwhy: warning: ...`.
 Warnings never change the exit code.
 
+## Online health information
+
+By default depwhy never touches the network. With `--online` it also looks up the
+packages that appear in the output:
+
+```console
+$ depwhy --online request
+request@2.88.2  npm · package-lock.json  ⚠ GHSA-p8p7-x288-28g6  [deprecated: request has been deprecated, see https://github.com/request/request/issues/3142]
+└── vuln (root, prod)
+direct dependency of vuln (prod)
+```
+
+- `⚠ GHSA-…` lists known advisories from [OSV](https://osv.dev) (GitHub, PyPI, RustSec and others).
+- `[deprecated: …]` is an npm deprecation message. `[yanked]` means the version was yanked from PyPI or crates.io.
+- Only packages shown in the output are looked up, and answers are cached for 24 hours in `$XDG_CACHE_HOME/depwhy` (or your OS cache directory). `--refresh` skips the cache.
+- Lookups never fail a run. If a service is unreachable you get a warning on stderr, the result is printed without that information, and the exit code is unchanged.
+- Private packages and registries are not supported; a package a public registry does not know is shown without information.
+- In `--json` mode packages gain `advisories`, `deprecated` and `yanked` fields. Without `--online` those keys are absent.
+
+Data sent: the names and versions of the packages shown, to `api.osv.dev` and to the
+public registry for each package's ecosystem. Nothing else leaves your machine.
+
 ## Supported lockfiles
 
 | File | Versions | Ecosystem |
@@ -133,6 +158,7 @@ Only the given directory is checked; there is no recursive scan.
 - **Python markers**: environment markers in `uv.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.
+- Advisory and deprecation data is only as complete as OSV and the public registries; `--online` does not read private registries.
 - Only lockfiles are read, apart from `package.json` names used to label pnpm roots. `yarn.lock`, `bun.lock`, `poetry.lock`, and `requirements.txt` are not supported yet; see the [roadmap](docs/ROADMAP.md).
 
 ## JSON output

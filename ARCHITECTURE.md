@@ -6,8 +6,8 @@ The spec wins if the two ever disagree.
 
 ## Overview
 
-depwhy answers three questions about a project's dependencies, offline, by
-reading lockfiles:
+depwhy answers three questions about a project's dependencies by reading
+lockfiles (offline unless you pass `--online`):
 
 | Mode | Question |
 |---|---|
@@ -41,6 +41,7 @@ internal/
   lockfile/               detection and one parser per format
   graph/                  graph model and the Why / Remove / Dupes algorithms
   render/                 text and JSON output, ANSI color
+  health/                 optional online lookups: advisories, deprecated/yanked
 testdata/
   projects/<name>/        one fixture project per ecosystem
   edge/<name>/            edge-case lockfiles used only by parser tests
@@ -53,12 +54,13 @@ Dependencies between packages only point one way:
 ```
 cli ──▶ render ──▶ graph
  │                   ▲
- └────▶ lockfile ────┘
+ ├────▶ lockfile ────┘
+ └────▶ health
 ```
 
-`graph` imports only the standard library. `lockfile` imports `graph` plus the
-YAML and TOML libraries. `render` imports `graph`. `cli` imports all three and
-the flag library. Nothing imports `cli`.
+`graph` imports only the standard library, and so does `health`. `lockfile`
+imports `graph` plus the YAML and TOML libraries. `render` imports `graph`.
+`cli` imports all of them and the flag library. Nothing imports `cli`.
 
 Everything lives under `internal/`, so the only public surface of the module is
 the command line and its JSON output.
@@ -216,6 +218,42 @@ result.
   the wire format. Arrays are always built non-nil so they encode as `[]`, never
   `null`. The schema is versioned because it becomes a stability promise at 1.0.
 
+## Online lookups (`internal/health`)
+
+Only used with `--online` (SPEC §12). Everything else in depwhy is offline and
+deterministic; this package is the one place that does network I/O, and `cli` is
+the only package that calls it. It works on plain `Pkg{Ecosystem, Name, Version}`
+values, so it knows nothing about graphs.
+
+```
+cli: collect the packages a result will show ─▶ health.Lookup ─▶ render.Notes ─▶ render
+```
+
+`Client.Lookup` takes the shown packages and returns what it learned:
+
+1. Skip packages that name no published release (no version, or a version like
+   `file:../x`).
+2. Serve what it can from the **cache**: one small JSON file per package, named
+   by a SHA-256 of `ecosystem:name@version` (safe for scoped names on every OS),
+   valid for 24 hours. `--refresh` skips reads but still writes.
+3. Ask **OSV** about the rest in one `querybatch` request per 1,000 packages.
+   Results come back in query order and are matched by position; a wrong count
+   is treated as a failure rather than guessed at.
+4. Ask each package's **registry** (npm, PyPI, crates.io) whether it is
+   deprecated or yanked: one request per package, at most 8 at a time, 5 seconds
+   each. A 404 means "no information".
+5. Cache only complete answers, so a failed lookup is retried next time.
+
+Failures never stop a run. They are folded into at most one warning per service
+(for example `online lookup failed: npm registry (3 packages): ...`), the exit
+code is unaffected, and the affected packages are printed without information.
+The client's URLs are fields, so every test talks to a local `httptest` server.
+
+`cli` converts the result into `render.Notes` (a map from node index to the
+findings) and puts it on the `render.Style` it hands to the renderers; the JSON
+builders take the same value. A nil `Notes` means offline, which is why offline
+output is byte-identical to v0.1.
+
 ## The command line (`internal/cli`)
 
 `Run(args, stdout, stderr) int` returns the exit code instead of calling
@@ -243,6 +281,7 @@ version embedded by `go install pkg@version`, then falls back to `dev`.
 | `graph` | Hand-built graphs through the `Builder`: diamonds, cycles, direct and dev-only targets, the path cap, `--prod`, `--depth`. |
 | `lockfile` | One test file per format, using the fixtures plus inline data for edge cases. |
 | `render` | Exact expected strings for the text output; decoded structure for JSON. |
+| `health` | Local `httptest` servers standing in for OSV and the registries: batching, caching and TTL, `--refresh`, 404s, timeouts, bad bodies, concurrency limit, warning aggregation. No test uses the internet. |
 | `cli` | **Golden tests.** `Run` is executed against every fixture project for ten argument lists; stdout, stderr and the exit code are compared with `testdata/golden/*.txt`. |
 | speed | A guard test builds a 3,000-node graph and fails if a query takes 200 ms or more. It is skipped under `-short` and `-race`. |
 
@@ -302,8 +341,8 @@ Dependabot keeps Go modules and the pinned Actions up to date.
 
 ## Design decisions
 
-- **Lockfiles only.** Reading the lockfile gives the exact resolved tree with no
-  network and no package manager installed. The cost is that anything the
+- **Lockfiles first, network only on request.** Reading the lockfile gives the exact resolved tree with no
+  network and no package manager installed. Online data is strictly additive and opt-in. The cost is that anything the
   lockfile does not record, such as cargo's dev and build edges, cannot be shown.
 - **One graph shape for all ecosystems.** This is what makes polyglot repos and a
   single JSON schema possible, and it keeps the algorithms free of format logic.

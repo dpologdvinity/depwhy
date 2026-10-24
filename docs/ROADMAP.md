@@ -13,7 +13,9 @@ Spec: `docs/SPEC.md`. Plan: `docs/PLAN.md`.
 
 Exit: golden tests pass and a manual check has been done on one real project per ecosystem.
 
-## v0.2 — Health info (opt-in network)
+## v0.2 — Health info (opt-in network) — done
+Spec: `docs/SPEC.md` §12. Plan: `docs/PLAN.md` (Tasks 17–22). Differences from the sketch below: advisories are looked up only for packages shown in the output (not the whole graph), and answers are cached per package.
+
 Adds a `--online` flag. Without it, behavior is identical to v0.1.
 - **Advisories** through OSV: `POST https://api.osv.dev/v1/querybatch` with `{"queries":[{"package":{"name":N,"ecosystem":E},"version":V}]}`, where E is `npm`, `PyPI`, or `crates.io`. Batch every node into one request, chunked at 1,000. Show `⚠ GHSA-…` next to affected nodes in trees, and add `advisories: []` to the JSON.
 - **Deprecated/yanked**: npm `GET https://registry.npmjs.org/<name>/<version>` (field `deprecated`), PyPI `GET https://pypi.org/pypi/<name>/<version>/json` (`info.yanked`), and crates.io `GET https://crates.io/api/v1/crates/<name>/<version>` (`version.yanked`; it requires a `User-Agent` header). Fetch only the nodes being displayed, not the whole graph.
