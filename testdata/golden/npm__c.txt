@@ -1,0 +1,11 @@
+c@1.0.0  npm · package-lock.json
+└── a@1.0.0
+    └── app (root, prod)
+
+c@2.0.0  npm · package-lock.json
+└── b@1.0.0
+    └── app (root, dev)
+
+--- stderr
+
+--- exit=0

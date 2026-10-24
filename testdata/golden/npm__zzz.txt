@@ -1,0 +1,5 @@
+
+--- stderr
+depwhy: zzz not found in package-lock.json
+
+--- exit=1
