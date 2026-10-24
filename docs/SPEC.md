@@ -70,6 +70,8 @@ errors (exit 2).
 | `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). |
 | `--json` | bool | false | Emit JSON (§7.3) instead of text. |
 | `--no-color` | bool | false | Disable ANSI color. |
+| `--online` | bool | false | v0.2: look up advisories and deprecated/yanked status (§12). |
+| `--refresh` | bool | false | v0.2: with `--online`, ignore cached responses (§12). |
 | `-V`, `--version` | bool | false | Print `depwhy <version>` and exit 0. |
 | `-h`, `--help` | bool | false | Print usage and exit 0. |
 
@@ -211,7 +213,7 @@ For a single target `t`, build the reverse tree:
   - If the child is a root, print it as a leaf with its label and the edge kind.
 - Stop expanding at `--depth` levels if set, and print `…` as the only child of a truncated node.
 - Collect `Leads []Lead` with one entry per direct dependency that has a path to `t`. Each entry holds `{Root, Direct, Kind}`, where Kind is the kind of the `root → direct` edge. If `t` is itself direct, it appears in Leads with itself as `Direct`.
-- The path cap: count the root-terminated leaves printed. After 10, stop adding new branches and print `… N more paths (use --all)`. For N, keep counting leaves with a DFS bounded at 10,000 visits, and print `N+` if that bound is hit. `--all` removes the cap.
+- The path cap: count the root-terminated leaves printed. After 10, stop adding new branches and print `… N more paths (use --all)`. For N, count remaining leaves in the deduplicated tree (linear walk). `--all` removes the cap.
 
 ### 6.2 Remove (`func (g *Graph) Remove(target int) RemoveResult`)
 
@@ -421,7 +423,7 @@ depwhy/
 ```
 
 `internal/graph` imports only the stdlib. `internal/lockfile` imports `graph`,
-yaml, and toml. `internal/render` imports `graph`. `internal/cli` imports all of them.
+yaml, and toml. `internal/render` imports `graph`. `internal/cli` imports all of them (v0.2 adds `internal/health`, §12.8).
 
 ## 10. Testing requirements
 
@@ -438,3 +440,103 @@ yaml, and toml. `internal/render` imports `graph`. `internal/cli` imports all of
 - Manual check on one real project per ecosystem, with the results noted in the PR description.
 - README with install, usage examples (copied from golden outputs), and the cargo limitations.
 - A tagged `v0.1.0` release builds binaries for linux/darwin/windows × amd64/arm64 through GoReleaser.
+
+## 12. v0.2: online health information
+
+v0.2 adds opt-in network lookups. Without `--online`, every behavior and every byte
+of output is identical to v0.1, and depwhy makes no network access of any kind.
+Sections 1 to 11 stay in force; this section only adds to them.
+
+### 12.1 Goals and non-goals
+- Show known security advisories (OSV) and deprecated or yanked status next to
+  packages in results.
+- Network trouble never changes the exit code and never fails a run: it produces
+  warnings and the result is printed without the missing information.
+- Non-goals: no authentication, no private-registry support, no advisory
+  severity or fix-version data, no lookups for packages that are not shown, and no
+  background services.
+
+### 12.2 Flags
+| Flag | Type | Default | Meaning |
+|---|---|---|---|
+| `--online` | bool | false | Look up advisories and deprecated/yanked status. |
+| `--refresh` | bool | false | With `--online`, ignore cached responses (fresh answers are still cached). |
+
+`--refresh` without `--online` is a usage error (exit 2).
+
+### 12.3 Which packages are looked up
+- **Advisories**: packages shown in the output are checked: the target and every
+  package printed in its tree, plus the freed and kept packages of `--remove`
+  and the versions listed by `--dupes`. Requests are batched up to 1,000 packages
+  per OSV query. Packages with no version, or a version that is not a registry
+  version (it contains `:` or `/`, such as `file:../x`), are skipped.
+- **Deprecated/yanked**: only packages shown in the output are checked: the target
+  and every package printed in its tree, plus the freed and kept packages of
+  `--remove` and the versions listed by `--dupes`. One request per package.
+
+### 12.4 Sources
+| Data | Request | Reads |
+|---|---|---|
+| Advisories | `POST https://api.osv.dev/v1/querybatch`, body `{"queries":[{"package":{"name":N,"ecosystem":E},"version":V}]}` | `results[i].vulns[].id`; E is `npm`, `PyPI` or `crates.io` |
+| npm deprecation | `GET https://registry.npmjs.org/<name>/<version>`; a scoped `@x/y` is requested as `@x%2Fy` | string field `deprecated` |
+| PyPI yanked | `GET https://pypi.org/pypi/<name>/<version>/json` | `info.yanked` (bool) |
+| crates.io yanked | `GET https://crates.io/api/v1/crates/<name>/<version>` | `version.yanked` (bool) |
+
+Every request sends `User-Agent: depwhy/<version> (+https://github.com/dpologdvinity/depwhy)`
+(crates.io requires one). Each request has a 5 second timeout, and at most 8
+requests run at once. A 404 from a registry means "no information" and is not a
+warning. Any other failure (network error, timeout, status other than 200 or 404,
+unparsable body) adds a warning `online lookup failed: <what>: <cause>`, and the
+affected packages are shown without that information. Advisory responses are
+trusted only for the package they were asked about, matched by position.
+
+### 12.5 Cache
+Responses are cached per package in `$XDG_CACHE_HOME/depwhy`, or in
+`os.UserCacheDir()/depwhy` when that is unset. Cache files are named
+`<sha256>.json`, where the hash is computed over `<ecosystem>:<name>@<version>`,
+ensuring cross-platform safety for scoped packages and characters invalid in file
+paths. An entry is valid for 24 hours. A missing, expired or unreadable entry is
+a miss. `--refresh` skips reads. A failure to write the cache is ignored. Failed
+lookups are never cached.
+
+### 12.6 Text output
+After a package's `name@version`, add the findings separated by two spaces:
+`⚠ <ID>, <ID>` for advisories (sorted by ID), `[deprecated: <message>]` for a
+deprecated npm package, and `[yanked]` for a yanked Python or Rust package. This
+applies to the heading and every package line in why trees, the freed and kept
+lists of `--remove`, and the version lines of `--dupes`. Roots are never annotated.
+
+```
+d@1.0.0  npm · package-lock.json  ⚠ GHSA-xxxx-xxxx-xxxx
+├── a@1.0.0  [deprecated: use b instead]
+│   └── app (root, prod)
+```
+
+Color: advisories red, deprecated and yanked yellow, when color is enabled.
+
+### 12.7 JSON output
+With `--online`, each package object (`package`, `freed[]`, `kept[]`, and dupes
+`versions[]`) gains `"advisories": [...]` (always present, possibly empty),
+`"deprecated": "<message>"` or `null`, and `"yanked": true|false`. Warnings from
+lookups are added to `warnings`. Without `--online` these keys are absent.
+These additions are backward-compatible; `schema` remains `1` both with and
+without `--online`.
+
+### 12.8 Package layout
+New package `internal/health` (imports only the standard library and `internal/graph`
+is not needed: it works on plain `Pkg{Ecosystem, Name, Version}` values) holds the
+client, the cache and the per-source parsers. `internal/render` receives findings
+as plain data (`render.Notes`) and does no I/O. `internal/cli` is the only package
+that connects them.
+
+### 12.9 Testing
+All network access in tests goes to local `httptest` servers; no test touches the
+internet. Cover: batching at 1,000, caching and TTL, `--refresh`, 404 handling,
+timeouts, malformed bodies, per-source parsing, scoped npm names, warnings that
+leave the exit code unchanged, byte-identical output without `--online`, and golden
+output for the annotated forms.
+
+### 12.10 Definition of done (v0.2)
+Everything in §12 behaves as described, tests and lint are green, a manual run against
+the real services on one project per ecosystem matches the registries' own data,
+README and ARCHITECTURE document the feature, and `v0.2.0` is released.

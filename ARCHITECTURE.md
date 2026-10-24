@@ -85,9 +85,8 @@ invariants every query relies on:
 4. At least one root exists, otherwise `Build` fails.
 
 A graph is built once and then read-only. A few results (dev-only flags and the
-sorted parent lists) are cached on it the first time they are needed, which
-means a `Graph` is **not safe for concurrent use**. depwhy is single-threaded,
-so this costs nothing.
+sorted parent lists) are cached on it via `sync.Once` the first time they are
+needed, making a `Graph` safe for concurrent reads.
 
 ### Direct dependencies and dev-only packages
 

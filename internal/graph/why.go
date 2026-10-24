@@ -54,37 +54,36 @@ type WhyResult struct {
 }
 
 // DevOnly reports, per node, whether it is reachable from the roots only through
-// Dev edges that leave a root (SPEC §5.3). The result is cached.
+// Dev edges that leave a root (SPEC §5.3). The result is cached and thread-safe.
 func (g *Graph) DevOnly() []bool {
-	if g.devOnly != nil {
-		return g.devOnly
-	}
-	reach := func(skipRootDev bool) []bool {
-		seen := make([]bool, len(g.Nodes))
-		stack := append([]int(nil), g.Roots...)
-		for _, r := range g.Roots {
-			seen[r] = true
-		}
-		for len(stack) > 0 {
-			n := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			for _, e := range g.Out[n] {
-				if skipRootDev && e.Kind == Dev && g.Nodes[n].Root {
-					continue
-				}
-				if !seen[e.To] {
-					seen[e.To] = true
-					stack = append(stack, e.To)
+	g.devOnce.Do(func() {
+		reach := func(skipRootDev bool) []bool {
+			seen := make([]bool, len(g.Nodes))
+			stack := append([]int(nil), g.Roots...)
+			for _, r := range g.Roots {
+				seen[r] = true
+			}
+			for len(stack) > 0 {
+				n := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				for _, e := range g.Out[n] {
+					if skipRootDev && e.Kind == Dev && g.Nodes[n].Root {
+						continue
+					}
+					if !seen[e.To] {
+						seen[e.To] = true
+						stack = append(stack, e.To)
+					}
 				}
 			}
+			return seen
 		}
-		return seen
-	}
-	all, prod := reach(false), reach(true)
-	g.devOnly = make([]bool, len(g.Nodes))
-	for i := range g.devOnly {
-		g.devOnly[i] = all[i] && !prod[i]
-	}
+		all, prod := reach(false), reach(true)
+		g.devOnly = make([]bool, len(g.Nodes))
+		for i := range g.devOnly {
+			g.devOnly[i] = all[i] && !prod[i]
+		}
+	})
 	return g.devOnly
 }
 
@@ -102,15 +101,15 @@ func (g *Graph) less(a, b int) bool {
 
 // parents returns one incoming edge per distinct source (lowest Kind wins), sorted
 // by less. With prod, root Dev edges and dev-only sources are ignored. The graph is
-// immutable after Build, so each variant is computed once for all nodes.
+// immutable after Build, so each variant is computed once for all nodes and is thread-safe.
 func (g *Graph) parents(n int, prod bool) []Edge {
 	i := 0
 	if prod {
 		i = 1
 	}
-	if g.parentCache[i] == nil {
+	g.parentOnce[i].Do(func() {
 		g.parentCache[i] = g.computeParents(prod)
-	}
+	})
 	return g.parentCache[i][n]
 }
 
