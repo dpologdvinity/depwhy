@@ -37,7 +37,8 @@ type Graph struct {
 	In        [][]Edge
 	Roots     []int
 
-	devOnly []bool
+	devOnly     []bool
+	parentCache [2][][]Edge // see parents; index 1 is the prod variant
 }
 
 // Builder assembles a Graph while keeping its invariants.

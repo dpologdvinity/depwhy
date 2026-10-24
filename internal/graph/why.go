@@ -93,27 +93,48 @@ func (g *Graph) less(a, b int) bool {
 }
 
 // parents returns one incoming edge per distinct source (lowest Kind wins), sorted
-// by less. With prod, root Dev edges and dev-only sources are ignored.
+// by less. With prod, root Dev edges and dev-only sources are ignored. The graph is
+// immutable after Build, so each variant is computed once for all nodes.
 func (g *Graph) parents(n int, prod bool) []Edge {
+	i := 0
+	if prod {
+		i = 1
+	}
+	if g.parentCache[i] == nil {
+		g.parentCache[i] = g.computeParents(prod)
+	}
+	return g.parentCache[i][n]
+}
+
+func (g *Graph) computeParents(prod bool) [][]Edge {
 	var dev []bool
 	if prod {
 		dev = g.DevOnly()
 	}
-	best := map[int]Edge{}
-	for _, e := range g.In[n] {
-		if prod && ((g.Nodes[e.From].Root && e.Kind == Dev) || dev[e.From]) {
-			continue
+	all := make([][]Edge, len(g.Nodes))
+	for n := range g.Nodes {
+		var out []Edge
+		for _, e := range g.In[n] {
+			if prod && ((g.Nodes[e.From].Root && e.Kind == Dev) || dev[e.From]) {
+				continue
+			}
+			dup := false
+			for j := range out {
+				if out[j].From == e.From {
+					dup = true
+					if e.Kind < out[j].Kind {
+						out[j] = e
+					}
+				}
+			}
+			if !dup {
+				out = append(out, e)
+			}
 		}
-		if cur, ok := best[e.From]; !ok || e.Kind < cur.Kind {
-			best[e.From] = e
-		}
+		sort.Slice(out, func(a, b int) bool { return g.less(out[a].From, out[b].From) })
+		all[n] = out
 	}
-	out := make([]Edge, 0, len(best))
-	for _, e := range best {
-		out = append(out, e)
-	}
-	sort.Slice(out, func(i, j int) bool { return g.less(out[i].From, out[j].From) })
-	return out
+	return all
 }
 
 func (g *Graph) rootParents(n int, prod bool) []Edge {

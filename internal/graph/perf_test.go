@@ -39,6 +39,9 @@ func TestPerformance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short mode")
 	}
+	if raceEnabled {
+		t.Skip("wall-clock guard is not meaningful under -race")
+	}
 	g := synthetic(t)
 	limit := 200 * time.Millisecond
 
