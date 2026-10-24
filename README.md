@@ -165,11 +165,26 @@ not-found run adds `suggestions`. For example, `depwhy --json c`:
 The full schema, including `--remove` and `--dupes`, is in [docs/SPEC.md](docs/SPEC.md) §7.3.
 The schema becomes a stability promise at 1.0.
 
+## How it works
+
+Each lockfile is parsed into the same small graph: packages are nodes, "requires"
+relationships are edges tagged `prod`, `dev`, `optional` or `peer`, and your
+project (or each workspace member) is a root. The three modes are queries on that
+graph, so adding a lockfile format means writing one parser and nothing else.
+
+```
+lockfile ──parse──▶ graph ──query──▶ result ──render──▶ text or JSON
+(internal/lockfile) (internal/graph)          (internal/render)
+```
+
+`internal/cli` wires the stages together. [ARCHITECTURE.md](ARCHITECTURE.md) has the details.
+
 ## Documentation
 
 | Document | Contents |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How depwhy is built: packages, the graph model, algorithms, testing, CI. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Local workflow, checks, commit and PR conventions. |
 | [docs/SPEC.md](docs/SPEC.md) | The behavior contract for v0.1. |
 | [docs/PLAN.md](docs/PLAN.md) | The implementation plan for v0.1. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What comes after v0.1. |
@@ -193,9 +208,9 @@ go test ./internal/cli -update   # rewrite testdata/golden
 git diff testdata/golden         # read every change against docs/SPEC.md
 ```
 
-To support another lockfile format, see "Adding a lockfile format" in
-[ARCHITECTURE.md](ARCHITECTURE.md). Commit messages follow
-[Conventional Commits](https://www.conventionalcommits.org/).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, commit conventions
+and the checks CI runs. To support another lockfile format, see "Adding a
+lockfile format" in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## License
 
