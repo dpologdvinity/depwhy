@@ -19,5 +19,15 @@ archives:
 checksum:
   name_template: checksums.txt
 
+release:
+  # v0.2.0-rc.1 style tags are published as pre-releases.
+  prerelease: auto
+
 changelog:
   use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore\\(deps\\)"
