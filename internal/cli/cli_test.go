@@ -12,12 +12,14 @@ import (
 	"testing"
 )
 
+// run calls Run with the given arguments and returns the exit code, stdout and stderr.
 func run(args ...string) (int, string, string) {
 	var out, errb bytes.Buffer
 	code := Run(args, &out, &errb)
 	return code, out.String(), errb.String()
 }
 
+// TestVersion checks that --version prints the build version and exits 0.
 func TestVersion(t *testing.T) {
 	code, out, _ := run("--version")
 	if code != 0 || out != "depwhy dev\n" {
@@ -25,6 +27,7 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+// TestUsageErrors checks that invalid invocations exit 2 with a "depwhy:" message.
 func TestUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{},
@@ -42,8 +45,10 @@ func TestUsageErrors(t *testing.T) {
 	}
 }
 
+// update rewrites the golden files: go test ./internal/cli -update.
 var update = flag.Bool("update", false, "rewrite golden files")
 
+// nonAlnum strips punctuation from arguments when deriving golden file names.
 var nonAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
 // stageFixture copies a fixture dir into a temp dir. A trailing ".fixture" is
@@ -68,6 +73,9 @@ func stageFixture(t *testing.T, src string) string {
 	return dst
 }
 
+// TestGolden runs the CLI end to end against every fixture project and compares
+// stdout, stderr and the exit code with the files in testdata/golden. The goldens
+// are the executable form of the spec, so review them by hand after -update.
 func TestGolden(t *testing.T) {
 	cases := [][]string{
 		{"c"}, {"d"}, {"c@1.0.0"}, {"--remove", "a"}, {"--remove", "c"}, {"--dupes"},
@@ -90,7 +98,9 @@ func TestGolden(t *testing.T) {
 				got := fmt.Sprintf("%s\n--- stderr\n%s\n--- exit=%d\n", out, errs, code)
 				golden := filepath.Join("..", "..", "testdata", "golden", name)
 				if *update {
-					os.MkdirAll(filepath.Dir(golden), 0o755)
+					if err := os.MkdirAll(filepath.Dir(golden), 0o755); err != nil {
+						t.Fatal(err)
+					}
 					if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
 						t.Fatal(err)
 					}
@@ -107,6 +117,8 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+// TestResolveVersion checks the order of preference for the reported version:
+// ldflags, then the module version embedded by go install, then "dev".
 func TestResolveVersion(t *testing.T) {
 	info := func(v string) *debug.BuildInfo { return &debug.BuildInfo{Main: debug.Module{Version: v}} }
 	cases := []struct {

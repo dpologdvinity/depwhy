@@ -2,17 +2,22 @@ package graph
 
 import "sort"
 
+// DupeVersion is one installed version of a duplicated package and the direct
+// dependencies that pull it in.
 type DupeVersion struct {
 	Node  int
 	Leads []Lead
 }
 
+// Dupe is a package name installed at two or more versions.
 type Dupe struct {
 	Name     string
-	Versions []DupeVersion
+	Versions []DupeVersion // ascending by version string
 }
 
-// Dupes lists packages present at more than one version (SPEC §6.3).
+// Dupes lists packages present at more than one version (SPEC §6.3), most
+// versions first and then by name. Names are compared exactly as written in the
+// lockfile. With prod, dev-only packages are ignored.
 func (g *Graph) Dupes(prod bool) []Dupe {
 	var dev []bool
 	if prod {
@@ -20,7 +25,7 @@ func (g *Graph) Dupes(prod bool) []Dupe {
 	}
 	byName := map[string][]int{}
 	for i, n := range g.Nodes {
-		if !n.Root && !(prod && dev[i]) {
+		if !n.Root && (!prod || !dev[i]) {
 			byName[n.Name] = append(byName[n.Name], i)
 		}
 	}

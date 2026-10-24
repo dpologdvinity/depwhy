@@ -11,6 +11,7 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/lockfile"
 )
 
+// npmGraph parses the shared npm fixture.
 func npmGraph(t *testing.T) *graph.Graph {
 	t.Helper()
 	data, err := os.ReadFile("../../testdata/projects/npm/package-lock.json")
@@ -24,6 +25,7 @@ func npmGraph(t *testing.T) *graph.Graph {
 	return g
 }
 
+// find returns the index of the node with the given ID or fails the test.
 func find(t *testing.T, g *graph.Graph, id string) int {
 	t.Helper()
 	for i, n := range g.Nodes {
@@ -35,6 +37,7 @@ func find(t *testing.T, g *graph.Graph, id string) int {
 	return -1
 }
 
+// whyText renders the why tree for the node with the given ID.
 func whyText(t *testing.T, id string, o graph.WhyOpts, s Style) string {
 	g := npmGraph(t)
 	var buf bytes.Buffer
@@ -42,6 +45,7 @@ func whyText(t *testing.T, id string, o graph.WhyOpts, s Style) string {
 	return buf.String()
 }
 
+// TestWhyTextDiamond checks the spec's main example, including the footer.
 func TestWhyTextDiamond(t *testing.T) {
 	want := `d@1.0.0  npm · package-lock.json
 ├── a@1.0.0
@@ -55,6 +59,7 @@ pulled in by 2 direct dependencies: a (prod), b (dev)
 	}
 }
 
+// TestWhyTextSingleLead checks that a single lead gets no footer.
 func TestWhyTextSingleLead(t *testing.T) {
 	want := `c@1.0.0  npm · package-lock.json
 └── a@1.0.0
@@ -65,6 +70,7 @@ func TestWhyTextSingleLead(t *testing.T) {
 	}
 }
 
+// TestWhyTextDirect checks the "direct dependency of" footer.
 func TestWhyTextDirect(t *testing.T) {
 	want := `a@1.0.0  npm · package-lock.json
 └── app (root, prod)
@@ -75,6 +81,7 @@ direct dependency of app (prod)
 	}
 }
 
+// TestWhyTextDepthEllipsis checks how a depth-truncated branch is drawn.
 func TestWhyTextDepthEllipsis(t *testing.T) {
 	want := `d@1.0.0  npm · package-lock.json
 ├── a@1.0.0
@@ -88,6 +95,8 @@ pulled in by 2 direct dependencies: a (prod), b (dev)
 	}
 }
 
+// TestWhyTextMarkersAndCap checks the (*) and (cycle) markers and the "more paths"
+// line, which must be the last child.
 func TestWhyTextMarkersAndCap(t *testing.T) {
 	b := graph.NewBuilder("npm", "package-lock.json")
 	app := b.Root("app", "")
@@ -131,6 +140,7 @@ func TestWhyTextMarkersAndCap(t *testing.T) {
 	}
 }
 
+// TestWhyTextColor checks that color adds escape codes and plain output has none.
 func TestWhyTextColor(t *testing.T) {
 	got := whyText(t, "d@1.0.0", graph.WhyOpts{}, Style{Color: true})
 	for _, s := range []string{"\x1b[1md@1.0.0  npm · package-lock.json\x1b[0m", "\x1b[36mapp\x1b[0m", "\x1b[2mdev\x1b[0m"} {
@@ -143,6 +153,7 @@ func TestWhyTextColor(t *testing.T) {
 	}
 }
 
+// removeText renders the removal report for the node with the given ID.
 func removeText(t *testing.T, id string, prod bool) string {
 	g := npmGraph(t)
 	var buf bytes.Buffer
@@ -150,6 +161,7 @@ func removeText(t *testing.T, id string, prod bool) string {
 	return buf.String()
 }
 
+// TestRemoveText checks the direct and not-direct removal reports.
 func TestRemoveText(t *testing.T) {
 	want := `removing a@1.0.0 (direct, prod) from app  npm · package-lock.json
 would remove 2 packages:
@@ -167,6 +179,7 @@ still needed by others (1):
 	}
 }
 
+// TestRemoveTextStillNeeded checks the report when the target stays installed.
 func TestRemoveTextStillNeeded(t *testing.T) {
 	b := graph.NewBuilder("npm", "package-lock.json")
 	app := b.Root("app", "")
@@ -186,6 +199,7 @@ a@1.0.0 itself stays: also required via b@1.0.0
 	}
 }
 
+// TestDupesText checks the duplicates listing and the empty case.
 func TestDupesText(t *testing.T) {
 	g := npmGraph(t)
 	var buf bytes.Buffer
@@ -205,6 +219,8 @@ c  2 versions
 	}
 }
 
+// TestJSONWhy checks the shape of a why document: schema, query, path elements,
+// leads, and the absence of suggestions.
 func TestJSONWhy(t *testing.T) {
 	g := npmGraph(t)
 	doc := NewDoc("why", &Query{Name: "c"})
@@ -246,6 +262,8 @@ func TestJSONWhy(t *testing.T) {
 	}
 }
 
+// TestJSONNotFoundRemoveDupes checks the not-found document and the remove and
+// dupes documents, including that arrays are never null.
 func TestJSONNotFoundRemoveDupes(t *testing.T) {
 	doc := NewDoc("why", &Query{Name: "zzz"})
 	doc.SetSuggestions(nil)
@@ -263,7 +281,9 @@ func TestJSONNotFoundRemoveDupes(t *testing.T) {
 	doc = NewDoc("remove", &Query{Name: "a", Version: "1.0.0"})
 	doc.Add(RemoveJSON(g, g.Remove(find(t, g, "a@1.0.0"), false)))
 	buf.Reset()
-	doc.Encode(&buf)
+	if err := doc.Encode(&buf); err != nil {
+		t.Fatal(err)
+	}
 	var m struct {
 		Query   map[string]any
 		Results []struct {
@@ -288,15 +308,22 @@ func TestJSONNotFoundRemoveDupes(t *testing.T) {
 	doc = NewDoc("dupes", nil)
 	doc.Add(DupesJSON(g, g.Dupes(false)))
 	buf.Reset()
-	doc.Encode(&buf)
+	if err := doc.Encode(&buf); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(buf.String(), `"query": null`) || !strings.Contains(buf.String(), `"dupes": [`) {
 		t.Fatalf("%s", buf.String())
 	}
 }
 
+// TestEnabled checks the color rules: a terminal enables it; --no-color, NO_COLOR
+// and a regular file disable it.
 func TestEnabled(t *testing.T) {
-	f, _ := os.Open(os.DevNull) // a char device
-	defer f.Close()
+	f, err := os.Open(os.DevNull) // a char device
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
 	t.Setenv("NO_COLOR", "")
 	if !Enabled(f, false) {
 		t.Error("char device should enable color")
@@ -309,8 +336,11 @@ func TestEnabled(t *testing.T) {
 		t.Error("NO_COLOR wins")
 	}
 	t.Setenv("NO_COLOR", "")
-	reg, _ := os.CreateTemp(t.TempDir(), "x")
-	defer reg.Close()
+	reg, err := os.CreateTemp(t.TempDir(), "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reg.Close() }()
 	if Enabled(reg, false) {
 		t.Error("regular file is not a terminal")
 	}

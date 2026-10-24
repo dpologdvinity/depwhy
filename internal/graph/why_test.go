@@ -38,6 +38,7 @@ func testGraph(t testing.TB, roots []string, edges ...string) *Graph {
 	return g
 }
 
+// id returns the index of the first node with the given name, or panics.
 func (g *Graph) id(name string) int {
 	for i, n := range g.Nodes {
 		if n.Name == name {
@@ -63,12 +64,14 @@ func renderTree(g *Graph, n *TreeNode, depth int, out *[]string) {
 	}
 }
 
+// treeLines flattens a result's tree into indented lines for comparison.
 func treeLines(g *Graph, r WhyResult) []string {
 	var out []string
 	renderTree(g, r.Tree, 0, &out)
 	return out
 }
 
+// pathNames renders each path as "root>a>target".
 func pathNames(g *Graph, r WhyResult) []string {
 	var out []string
 	for _, p := range r.Paths {
@@ -81,6 +84,8 @@ func pathNames(g *Graph, r WhyResult) []string {
 	return out
 }
 
+// TestWhyDiamond checks a package reached through two direct dependencies: both
+// routes appear, ordered by name, with the right edge kinds and leads.
 func TestWhyDiamond(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "app>b:dev", "a>c", "b>c")
 	r := g.Why(g.id("c"), WhyOpts{})
@@ -91,7 +96,7 @@ func TestWhyDiamond(t *testing.T) {
 	if got := pathNames(g, r); !reflect.DeepEqual(got, []string{"app>a>c", "app>b>c"}) {
 		t.Fatalf("paths = %q", got)
 	}
-	if r.Direct || r.Truncated || r.MorePaths != "" || !(!r.DevOnly) {
+	if r.Direct || r.Truncated || r.MorePaths != "" || r.DevOnly {
 		t.Fatalf("flags: %+v", r)
 	}
 	if len(r.Leads) != 2 || r.Leads[0].Kind != Prod || r.Leads[1].Kind != Dev || g.Nodes[r.Leads[1].Direct].Name != "b" {
@@ -103,6 +108,8 @@ func TestWhyDiamond(t *testing.T) {
 	}
 }
 
+// TestWhyRepeatedSubtreeIsMarked checks that a node expanded earlier is shown
+// again as (*) without being expanded, while Paths still lists every route.
 func TestWhyRepeatedSubtreeIsMarked(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "a>c", "a>d", "c>e", "d>e")
 	r := g.Why(g.id("e"), WhyOpts{})
@@ -115,6 +122,8 @@ func TestWhyRepeatedSubtreeIsMarked(t *testing.T) {
 	}
 }
 
+// TestWhyCycle checks that a dependency cycle is cut with (cycle) and excluded
+// from the paths.
 func TestWhyCycle(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "a>b", "b>a")
 	r := g.Why(g.id("b"), WhyOpts{})
@@ -127,6 +136,8 @@ func TestWhyCycle(t *testing.T) {
 	}
 }
 
+// TestWhyDirectTargetShowsOnlyRootLeaves checks that a direct dependency lists
+// only the projects that require it, not packages that also depend on it.
 func TestWhyDirectTargetShowsOnlyRootLeaves(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "app>b", "b>a")
 	r := g.Why(g.id("a"), WhyOpts{})
@@ -148,6 +159,8 @@ func TestWhyDirectTargetShowsOnlyRootLeaves(t *testing.T) {
 	}
 }
 
+// TestWhyDepthTruncates checks that --depth replaces deeper levels with "…" and
+// leaves the leads complete.
 func TestWhyDepthTruncates(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "a>b", "b>c")
 	r := g.Why(g.id("c"), WhyOpts{Depth: 1})
@@ -168,6 +181,7 @@ func TestWhyDepthTruncates(t *testing.T) {
 	}
 }
 
+// parallelGraph makes n parallel routes root → m_i → t, to exercise the path cap.
 func parallelGraph(t testing.TB, n int) *Graph {
 	var edges []string
 	for i := 1; i <= n; i++ {
@@ -176,6 +190,8 @@ func parallelGraph(t testing.TB, n int) *Graph {
 	return testGraph(t, []string{"app"}, edges...)
 }
 
+// TestWhyPathCap checks the 10-path cap: ten paths shown, the rest counted, and
+// --all lifting the cap.
 func TestWhyPathCap(t *testing.T) {
 	g := parallelGraph(t, 12)
 	r := g.Why(g.id("t"), WhyOpts{})
@@ -198,6 +214,8 @@ func TestWhyPathCap(t *testing.T) {
 	}
 }
 
+// TestDevOnlyAndProd checks dev-only detection and that --prod removes dev routes
+// from the tree, the paths and the leads.
 func TestDevOnlyAndProd(t *testing.T) {
 	g := testGraph(t, []string{"app"}, "app>a", "app>b:dev", "b>c", "a>d", "b>d")
 	dev := g.DevOnly()
@@ -225,6 +243,8 @@ func TestDevOnlyAndProd(t *testing.T) {
 	}
 }
 
+// TestWhyMorePathsIgnoresDepthHiddenBranches checks that branches hidden by
+// --depth are not counted as paths hidden by the cap.
 func TestWhyMorePathsIgnoresDepthHiddenBranches(t *testing.T) {
 	var edges []string
 	for i := 1; i <= 12; i++ {

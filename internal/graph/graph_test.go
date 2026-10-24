@@ -2,19 +2,25 @@ package graph
 
 import "testing"
 
+// TestBuilderDedupesNodes checks that Node and Root return the same index for the
+// same ID and different indexes for different versions.
 func TestBuilderDedupesNodes(t *testing.T) {
 	b := NewBuilder("npm", "package-lock.json")
-	if b.Node("a", "1.0.0") != b.Node("a", "1.0.0") {
+	first := b.Node("a", "1.0.0")
+	if again := b.Node("a", "1.0.0"); again != first {
 		t.Fatal("same ID must give same index")
 	}
 	if b.Node("a", "1.0.0") == b.Node("a", "2.0.0") {
 		t.Fatal("different versions must differ")
 	}
-	if b.Root("app", "1") != b.Root("app", "1") {
+	root := b.Root("app", "1")
+	if again := b.Root("app", "1"); again != root {
 		t.Fatal("root must dedupe")
 	}
 }
 
+// TestBuilderDedupesEdgesAndMirrorsIn checks that identical edges collapse, edges
+// of different kinds are kept, and In mirrors Out.
 func TestBuilderDedupesEdgesAndMirrorsIn(t *testing.T) {
 	b := NewBuilder("npm", "x")
 	r := b.Root("app", "")
@@ -42,6 +48,7 @@ func TestBuilderDedupesEdgesAndMirrorsIn(t *testing.T) {
 	}
 }
 
+// TestBuildFailsWithoutRoots checks that a graph with no root is rejected.
 func TestBuildFailsWithoutRoots(t *testing.T) {
 	b := NewBuilder("npm", "x")
 	b.Node("a", "1")
@@ -50,6 +57,7 @@ func TestBuildFailsWithoutRoots(t *testing.T) {
 	}
 }
 
+// TestKindString checks the lowercase names printed for each edge kind.
 func TestKindString(t *testing.T) {
 	for k, want := range map[Kind]string{Prod: "prod", Dev: "dev", Optional: "optional", Peer: "peer"} {
 		if k.String() != want {
