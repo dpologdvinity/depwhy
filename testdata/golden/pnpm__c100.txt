@@ -1,0 +1,7 @@
+c@1.0.0  npm · pnpm-lock.yaml
+└── a@1.0.0
+    └── app (root, prod)
+
+--- stderr
+
+--- exit=0

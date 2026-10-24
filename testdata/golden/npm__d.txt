@@ -1,0 +1,10 @@
+d@1.0.0  npm · package-lock.json
+├── a@1.0.0
+│   └── app (root, prod)
+└── b@1.0.0
+    └── app (root, dev)
+pulled in by 2 direct dependencies: a (prod), b (dev)
+
+--- stderr
+
+--- exit=0

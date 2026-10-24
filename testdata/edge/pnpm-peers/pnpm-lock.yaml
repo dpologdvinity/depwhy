@@ -1,0 +1,43 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.2.0(react@18.2.0)
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
+      wrap-ansi:
+        specifier: ^8.0.0
+        version: 8.1.0
+
+packages:
+
+  react-dom@18.2.0:
+    resolution: {integrity: sha512-X}
+
+  react@18.2.0:
+    resolution: {integrity: sha512-Y}
+
+  string-width@4.2.3:
+    resolution: {integrity: sha512-Z}
+
+  wrap-ansi@8.1.0:
+    resolution: {integrity: sha512-W}
+
+snapshots:
+
+  react-dom@18.2.0(react@18.2.0):
+    dependencies:
+      react: 18.2.0
+
+  react@18.2.0: {}
+
+  string-width@4.2.3: {}
+
+  wrap-ansi@8.1.0:
+    dependencies:
+      string-width-cjs: string-width@4.2.3
