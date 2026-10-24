@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "mode": "why",
+  "query": {
+    "name": "d",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "package-lock.json",
+      "package": {
+        "name": "d",
+        "version": "1.0.0",
+        "advisories": [
+          "GHSA-dddd-0001"
+        ],
+        "deprecated": null,
+        "yanked": false
+      },
+      "dev_only": false,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "app",
+            "version": "1.0.0",
+            "root": true
+          },
+          {
+            "name": "a",
+            "version": "1.0.0",
+            "kind": "prod"
+          },
+          {
+            "name": "d",
+            "version": "1.0.0",
+            "kind": "prod"
+          }
+        ],
+        [
+          {
+            "name": "app",
+            "version": "1.0.0",
+            "root": true
+          },
+          {
+            "name": "b",
+            "version": "1.0.0",
+            "kind": "dev"
+          },
+          {
+            "name": "d",
+            "version": "1.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "app",
+          "name": "a",
+          "version": "1.0.0",
+          "kind": "prod"
+        },
+        {
+          "root": "app",
+          "name": "b",
+          "version": "1.0.0",
+          "kind": "dev"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0
