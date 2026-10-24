@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -17,6 +18,15 @@ import (
 
 // Version is overridden at release time via -ldflags.
 var Version = "dev"
+
+// resolveVersion prefers the ldflags version, then the module version that
+// `go install pkg@version` embeds, then "dev".
+func resolveVersion(ldflags string, info *debug.BuildInfo) string {
+	if ldflags != "dev" || info == nil || info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return ldflags
+	}
+	return info.Main.Version
+}
 
 const usage = `usage:
   depwhy [flags] <package>[@version]      explain why <package> is installed
@@ -70,7 +80,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if version {
-		fmt.Fprintf(stdout, "depwhy %s\n", Version)
+		info, _ := debug.ReadBuildInfo()
+		fmt.Fprintf(stdout, "depwhy %s\n", resolveVersion(Version, info))
 		return 0
 	}
 	if msg := validate(&o, fs.Args()); msg != "" {
@@ -212,7 +223,10 @@ func query(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 		}
 		if o.json {
 			doc.SetSuggestions(sugg)
-			doc.Encode(stdout)
+			if err := doc.Encode(stdout); err != nil {
+				fmt.Fprintf(stderr, "depwhy: %v\n", err)
+				return 2
+			}
 		}
 		return 1
 	}
