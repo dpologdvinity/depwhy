@@ -196,7 +196,7 @@ func dupes(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 	for i, g := range graphs {
 		ds := g.Dupes(o.prod)
 		if o.json {
-			doc.Add(render.DupesJSON(g, ds))
+			doc.Add(render.DupesJSON(g, ds, nil))
 			continue
 		}
 		if i > 0 {
@@ -259,7 +259,7 @@ func query(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 		if o.remove {
 			r := m.g.Remove(m.n, o.prod)
 			if o.json {
-				doc.Add(render.RemoveJSON(m.g, r))
+				doc.Add(render.RemoveJSON(m.g, r, nil))
 				continue
 			}
 			if i > 0 {
@@ -270,7 +270,7 @@ func query(o *options, graphs []*graph.Graph, style render.Style, warnings []str
 		}
 		r := m.g.Why(m.n, graph.WhyOpts{Depth: o.depth, All: o.all, Prod: o.prod})
 		if o.json {
-			doc.Add(render.WhyJSON(m.g, r))
+			doc.Add(render.WhyJSON(m.g, r, nil))
 			continue
 		}
 		if i > 0 {
