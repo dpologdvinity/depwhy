@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -83,6 +84,26 @@ func TestGolden(t *testing.T) {
 					t.Errorf("golden mismatch for %v\n--- got\n%s\n--- want\n%s", args, got, want)
 				}
 			})
+		}
+	}
+}
+
+func TestResolveVersion(t *testing.T) {
+	info := func(v string) *debug.BuildInfo { return &debug.BuildInfo{Main: debug.Module{Version: v}} }
+	cases := []struct {
+		ldflags string
+		info    *debug.BuildInfo
+		want    string
+	}{
+		{"1.2.3", info("v9.9.9"), "1.2.3"}, // release build: ldflags win
+		{"dev", info("v0.1.0"), "v0.1.0"},  // go install pkg@version
+		{"dev", info("(devel)"), "dev"},    // local build
+		{"dev", info(""), "dev"},
+		{"dev", nil, "dev"},
+	}
+	for _, c := range cases {
+		if got := resolveVersion(c.ldflags, c.info); got != c.want {
+			t.Errorf("resolveVersion(%q, %v) = %q, want %q", c.ldflags, c.info, got, c.want)
 		}
 	}
 }
