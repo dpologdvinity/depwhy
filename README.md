@@ -73,6 +73,9 @@ npx @kaitlynbassford/depwhy lodash       # or run it once
 
 The package is scoped because npm rejected the plain name `depwhy` as too similar to an existing package.
 
+The Homebrew cask removes macOS's quarantine flag from the binary after install, because
+the binary is not Apple-notarized.
+
 Or download a binary, a `.deb`, `.rpm` or `.apk` package for Linux, a binary for macOS or
 Windows (amd64 and arm64) from the
 [releases page](https://github.com/dpologdvinity/depwhy/releases).

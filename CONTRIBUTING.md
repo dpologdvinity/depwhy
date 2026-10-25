@@ -127,15 +127,20 @@ git tag -a v0.2.0 -m "depwhy v0.2.0"
 git push origin v0.2.0
 ```
 
-The release workflow re-runs the checks and then publishes binaries, Linux packages
-and the Homebrew cask with GoReleaser, and republishes the apt repository. Tags with
-a suffix such as `v0.2.0-rc.1` are published as pre-releases and do not update
-Homebrew or apt.
+The release workflow first runs the whole CI pipeline (`ci.yml`), then publishes
+binaries, Linux packages and the Homebrew cask with GoReleaser, republishes the apt
+repository, and publishes the npm package. Tags with a suffix such as `v0.2.0-rc.1`
+are published as pre-releases and do not update Homebrew, apt or npm. A missing
+`APT_GPG_PRIVATE_KEY`, `NPM_TOKEN` or `HOMEBREW_TAP_GITHUB_TOKEN` skips that channel
+with a warning instead of failing the release.
 
 Repository secrets the release uses: `HOMEBREW_TAP_GITHUB_TOKEN` (Homebrew) and
 `APT_GPG_PRIVATE_KEY` (signs the apt repository) and `NPM_TOKEN` (publishes the
-npm launcher package in `npm/`; its tests run with `cd npm && npm test`). To check the packaging scripts
-locally you need `dpkg-dev`, `apt-utils`, `gpg` and Docker; see
+npm launcher package in `npm/`; its tests run with `cd npm && npm test`).
+
+One-time repository setup the apt site depends on: Settings → Pages → Source:
+*GitHub Actions*, and the `github-pages` environment must allow deployments from
+`master` and `v*` tags. To check the packaging scripts locally you need `dpkg-dev`, `apt-utils`, `gpg` and Docker; see
 `scripts/build-apt-repo.sh` and `scripts/test-apt-repo.sh`.
 
 ## Reporting problems

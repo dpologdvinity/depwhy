@@ -41,10 +41,12 @@ homebrew_casks:
     repository:
       owner: dpologdvinity
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: '{{ with index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}{{ . }}{{ end }}'
     homepage: https://github.com/dpologdvinity/depwhy
     description: Explains why a package is in your dependency tree, from the lockfile, offline
-    skip_upload: auto # pre-releases such as v0.2.0-rc.1 do not update the tap
+    # Pre-releases (v0.2.0-rc.1) do not update the tap, and neither does a run
+    # without the token (it expired or is unset): the release itself must not fail.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}auto{{ else }}true{{ end }}'
     hooks:
       post:
         # The binary is not notarized; drop the macOS quarantine flag after install.

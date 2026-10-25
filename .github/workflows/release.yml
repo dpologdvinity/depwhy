@@ -2,42 +2,48 @@ name: release
 
 # Publishes a GitHub release when a version tag is pushed:
 #   git tag -a v0.2.0 -m "depwhy v0.2.0" && git push origin v0.2.0
-# Tags with a pre-release suffix (v0.2.0-rc.1) are published as pre-releases.
+# Tags with a pre-release suffix (v0.2.0-rc.1) are published as pre-releases and
+# do not update Homebrew, apt or npm.
 on:
   push:
     tags: ["v*"]
+
+# One release at a time, and never cancel one half way through publishing.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  # A tag on a red commit must not publish anything.
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go vet ./...
-      - run: go test -race ./...
+  # The whole CI pipeline (lint, tests on three OSes, coverage gate, vulnerability
+  # scan, packaging and apt checks, npm wrapper tests) must pass before anything is
+  # published. A tag on a commit that never went through CI is therefore harmless.
+  ci:
+    uses: ./.github/workflows/ci.yml
 
   goreleaser:
-    needs: verify
+    needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write # create the release and upload assets
+    env:
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
     steps:
+      - name: Homebrew token present?
+        run: |
+          if [ -z "$HOMEBREW_TAP_GITHUB_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_GITHUB_TOKEN is not set; the Homebrew cask will not be updated."
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # the changelog needs history
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          # Always build and scan with the newest patched toolchain: the binary embeds
-          # the Go standard library (including net/http and TLS).
+          # Always build with the newest patched toolchain: the binary embeds the
+          # Go standard library (including net/http and TLS).
           go-version: stable
           check-latest: true
           cache: true
@@ -47,10 +53,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
   # Publishes the apt repository from the .deb files of every stable release (see
-  # apt.yml). Pre-release tags (v1.0.0-rc.1) do not update it.
+  # apt.yml). Only the signing key is passed on, not the other secrets.
   apt:
     needs: goreleaser
     if: ${{ !contains(github.ref_name, '-') }}
@@ -59,12 +64,13 @@ jobs:
       pages: write
       id-token: write
     uses: ./.github/workflows/apt.yml
-    secrets: inherit
+    secrets:
+      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
 
   # Publishes the npm launcher package (npm/) at the tag's version, with
   # provenance, then installs it from the registry as a smoke test. Needs the
-  # NPM_TOKEN secret; without it the job is skipped with a warning. Pre-release
-  # tags are not published.
+  # NPM_TOKEN secret; without it the job is skipped with a warning. The token is
+  # visible only to the steps that need it, not to tests or the smoke test.
   npm:
     needs: goreleaser
     if: ${{ !contains(github.ref_name, '-') }}
@@ -74,12 +80,14 @@ jobs:
       contents: read
       id-token: write # npm provenance
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: publish token present?
         id: token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "$NODE_AUTH_TOKEN" ]; then
+          if [ -n "$NPM_TOKEN" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::NPM_TOKEN is not set; the npm package was not published."
@@ -91,25 +99,40 @@ jobs:
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-      - name: test, version and publish
+      - name: prepare the package
         if: steps.token.outputs.enabled == 'true'
         working-directory: npm
         run: |
           npm test
           npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
           cp ../LICENSE .
-          npm publish --access public --provenance
+          # Bundle the release's checksums so the installer verifies downloads
+          # against a file that travels inside the attested package.
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern checksums.txt --dir .
+      - name: publish (skipped if this version is already on the registry)
+        if: steps.token.outputs.enabled == 'true'
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if npm view "@kaitlynbassford/depwhy@${version}" version >/dev/null 2>&1; then
+            echo "@kaitlynbassford/depwhy@${version} is already published; skipping."
+          else
+            npm publish --access public --provenance
+          fi
       - name: smoke test the published package
         if: steps.token.outputs.enabled == 'true'
         run: |
           version="${GITHUB_REF_NAME#v}"
           # A new package can take several minutes to show up (v0.2.3 took about 8).
           for attempt in $(seq 1 40); do
-            if out=$(npx --yes "@kaitlynbassford/depwhy@${version}" --version 2>&1); then
-              echo "$out"
-              test "$out" = "depwhy ${version}"
-              exit 0
+            if npm view "@kaitlynbassford/depwhy@${version}" version >/dev/null 2>&1; then
+              break
             fi
-            echo "attempt ${attempt} failed: ${out}"; sleep 15
+            echo "waiting for the registry (attempt ${attempt})"; sleep 15
           done
-          exit 1
+          # Once visible, install and run exactly once: a real failure must fail.
+          out=$(npx --yes "@kaitlynbassford/depwhy@${version}" --version)
+          echo "$out"
+          test "$out" = "depwhy ${version}"

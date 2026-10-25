@@ -328,8 +328,9 @@ dependencies ──┬──▶ lint ──────────┐
 | govulncheck | Known vulnerabilities in dependencies and reachable standard-library code. |
 | build artifacts | A GoReleaser snapshot build for every OS/arch target, uploaded as an artifact. Runs only after the jobs above pass, and catches release-config mistakes before a tag does. |
 
-`.github/workflows/release.yml` runs on a `v*` tag. It runs vet and the race tests
-first and only then runs GoReleaser, which builds `CGO_ENABLED=0` binaries for
+`.github/workflows/release.yml` runs on a `v*` tag. It first calls the whole CI
+workflow (so a tag on a commit that never passed CI publishes nothing), and only then
+runs GoReleaser, which builds `CGO_ENABLED=0` binaries for
 Linux, macOS and Windows on amd64 and arm64, sets `internal/cli.Version` through
 `-ldflags`, and publishes archives with checksums and a changelog built from
 Conventional Commit messages. It also commits a Homebrew cask to
@@ -352,8 +353,14 @@ pre-releases.
 unscoped name as too similar to `dep-why`) contains no binary. `bin/depwhy.js` finds the native
 binary under `vendor/`, downloading it first if it is missing, and runs it with the
 same arguments. `lib/install.js` picks the release asset for the machine (`platform.js`),
-downloads `checksums.txt` and the archive from the GitHub release of the same version,
-refuses to install unless the SHA-256 matches, and unpacks it with the system `tar`.
+takes the expected SHA-256 from `checksums.txt` and downloads the archive from the GitHub
+release of the same version, refusing to install unless they match. The release workflow
+bundles that `checksums.txt` into the published tarball, so the expected hashes travel
+inside the provenance-attested package instead of being fetched from the same place as
+the binary (the download is only used if the file is absent, for example in a source
+checkout). The archive is unpacked with the system `tar` (the OS one on Windows) into a
+private temporary directory and renamed into place, so an interrupted or concurrent
+install can never leave a truncated binary.
 A postinstall script does this at install time; because npm 12 skips install scripts
 by default, the launcher repeats it on first run, so both paths work. The release
 workflow sets the package version from the tag and publishes with provenance.

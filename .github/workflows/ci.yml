@@ -6,6 +6,8 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # Called by release.yml, so a release only publishes what passed the whole pipeline.
+  workflow_call:
 
 # A newer push to the same ref cancels the run it supersedes.
 concurrency:

@@ -10,7 +10,15 @@ name: apt
 # warning and nothing else is affected.
 on:
   workflow_call:
+    secrets:
+      APT_GPG_PRIVATE_KEY:
+        required: false
   workflow_dispatch:
+
+# Two publishes at once could finish out of order and leave an older site live.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -24,11 +32,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     env:
-      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: signing key present?
         id: key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
         run: |
           if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -44,12 +53,26 @@ jobs:
         if: steps.key.outputs.enabled == 'true'
         run: |
           mkdir debs
-          for tag in $(gh release list --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName'); do
-            gh release download "$tag" --pattern '*.deb' --dir debs --clobber || true
+          latest=$(gh release list --exclude-pre-releases --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          for tag in $(gh release list --exclude-pre-releases --exclude-drafts --limit 200 --json tagName --jq '.[].tagName'); do
+            # Releases before v0.2.1 have no .deb files; any other failure is real.
+            if ! out=$(gh release download "$tag" --pattern '*.deb' --dir debs --clobber 2>&1); then
+              case "$out" in
+                *"no assets match"*) echo "$tag: no .deb files, skipping" ;;
+                *) echo "$out" >&2; exit 1 ;;
+              esac
+            fi
           done
           ls debs
+          # The newest release must be present for both architectures, or the
+          # site would silently go live without it.
+          for arch in amd64 arm64; do
+            test -f "debs/depwhy_${latest#v}_linux_${arch}.deb" || { echo "missing ${latest} ${arch} .deb" >&2; exit 1; }
+          done
       - name: build and sign the repository
         if: steps.key.outputs.enabled == 'true'
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
         run: |
           printf '%s\n' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
           fingerprint=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
