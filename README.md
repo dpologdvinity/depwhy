@@ -6,6 +6,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/dpologdvinity/depwhy)](https://goreportcard.com/report/github.com/dpologdvinity/depwhy)
 [![license: MIT](https://img.shields.io/github/license/dpologdvinity/depwhy)](LICENSE)
 
+![depwhy demo](docs/demo.gif)
+
 **Why is this package in my dependency tree?** `depwhy` reads your lockfile and
 tells you, offline by default, with one interface for npm, pnpm, Python (uv), and Cargo.
 
