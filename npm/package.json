@@ -1,0 +1,24 @@
+{
+  "name": "depwhy",
+  "version": "0.0.0",
+  "description": "Explains why a package is in your dependency tree, from the lockfile. npm, pnpm, uv and Cargo.",
+  "keywords": ["dependencies", "lockfile", "dependency-tree", "npm", "pnpm", "uv", "cargo", "cli"],
+  "homepage": "https://github.com/dpologdvinity/depwhy",
+  "bugs": "https://github.com/dpologdvinity/depwhy/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dpologdvinity/depwhy.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "author": "Kaitlyn Bassford",
+  "bin": { "depwhy": "bin/depwhy.js" },
+  "files": ["bin", "lib", "README.md", "LICENSE"],
+  "scripts": {
+    "postinstall": "node lib/postinstall.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=18" },
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"]
+}

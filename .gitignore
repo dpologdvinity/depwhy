@@ -1,3 +1,9 @@
 /depwhy
 /dist/
 .env
+
+# npm wrapper build output
+/npm/vendor/
+/npm/node_modules/
+/npm/*.tgz
+/npm/LICENSE

@@ -60,3 +60,56 @@ jobs:
       id-token: write
     uses: ./.github/workflows/apt.yml
     secrets: inherit
+
+  # Publishes the npm launcher package (npm/) at the tag's version, with
+  # provenance, then installs it from the registry as a smoke test. Needs the
+  # NPM_TOKEN secret; without it the job is skipped with a warning. Pre-release
+  # tags are not published.
+  npm:
+    needs: goreleaser
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: publish token present?
+        id: token
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::NPM_TOKEN is not set; the npm package was not published."
+          fi
+      - if: steps.token.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - if: steps.token.outputs.enabled == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - name: test, version and publish
+        if: steps.token.outputs.enabled == 'true'
+        working-directory: npm
+        run: |
+          npm test
+          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
+          cp ../LICENSE .
+          npm publish --access public --provenance
+      - name: smoke test the published package
+        if: steps.token.outputs.enabled == 'true'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The registry can take a moment to serve a new version.
+          for attempt in 1 2 3 4 5 6; do
+            if out=$(npx --yes "depwhy@${version}" --version 2>&1); then
+              echo "$out"
+              test "$out" = "depwhy ${version}"
+              exit 0
+            fi
+            echo "attempt ${attempt} failed: ${out}"; sleep 20
+          done
+          exit 1

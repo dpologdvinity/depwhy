@@ -133,7 +133,8 @@ a suffix such as `v0.2.0-rc.1` are published as pre-releases and do not update
 Homebrew or apt.
 
 Repository secrets the release uses: `HOMEBREW_TAP_GITHUB_TOKEN` (Homebrew) and
-`APT_GPG_PRIVATE_KEY` (signs the apt repository). To check the packaging scripts
+`APT_GPG_PRIVATE_KEY` (signs the apt repository) and `NPM_TOKEN` (publishes the
+npm launcher package in `npm/`; its tests run with `cd npm && npm test`). To check the packaging scripts
 locally you need `dpkg-dev`, `apt-utils`, `gpg` and Docker; see
 `scripts/build-apt-repo.sh` and `scripts/test-apt-repo.sh`.
 
