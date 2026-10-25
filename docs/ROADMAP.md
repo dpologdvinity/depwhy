@@ -43,7 +43,7 @@ In priority order, each with fixtures and goldens:
 
 ## v1.0 — Stability
 - Freeze the JSON `schema: 1` and document it in `docs/json-schema.md`. Any break bumps `schema`.
-- Homebrew tap (`dpologdvinity/homebrew-tap` via the GoReleaser `brews`), a Scoop bucket, and an npm wrapper package `depwhy` that downloads the right binary through `postinstall`. The npm name is free as of 2026-10-23.
+- Distribution: a Scoop bucket (still open). Done early, in v0.2.x: the Homebrew cask in `dpologdvinity/homebrew-tap`, `.deb`/`.rpm`/`.apk` packages with a signed apt repository, and the npm package `depwhy` (`npm/`, a launcher that downloads the right binary).
 - Shell completions (`depwhy completion bash|zsh|fish`), with package-name completion from the lockfile.
 
 ## Launch checklist (alongside v0.1–v0.2)

@@ -115,6 +115,26 @@ jobs:
             coverage.out
             coverage.txt
 
+  # The npm launcher package (npm/): unit tests on the oldest and newest supported
+  # Node, on Linux and Windows (the Windows archive is a .zip unpacked with tar).
+  npm:
+    name: npm wrapper (${{ matrix.os }}, node ${{ matrix.node }})
+    needs: deps
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["18", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+        working-directory: npm
+
   # Known-vulnerability scan of the dependencies and of the standard library
   # functions the code reaches.
   vuln:

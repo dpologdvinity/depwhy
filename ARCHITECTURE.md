@@ -346,6 +346,16 @@ pre-releases.
 | Homebrew | GoReleaser commits `Casks/depwhy.rb` to `dpologdvinity/homebrew-tap` |
 | `.deb`, `.rpm`, `.apk` | GoReleaser `nfpms`, attached to the release |
 | apt repository | `apt.yml`, described below |
+| npm | `npm/`: a zero-dependency launcher that downloads and checksum-verifies the release binary; published by `release.yml` |
+
+**The npm package** (`npm/`) contains no binary. `bin/depwhy.js` finds the native
+binary under `vendor/`, downloading it first if it is missing, and runs it with the
+same arguments. `lib/install.js` picks the release asset for the machine (`platform.js`),
+downloads `checksums.txt` and the archive from the GitHub release of the same version,
+refuses to install unless the SHA-256 matches, and unpacks it with the system `tar`.
+A postinstall script does this at install time; because npm 12 skips install scripts
+by default, the launcher repeats it on first run, so both paths work. The release
+workflow sets the package version from the tag and publishes with provenance.
 
 **The apt repository** is a signed *flat* repository served from GitHub Pages at
 `https://dpologdvinity.github.io/depwhy/apt`. Its state is derived, not stored:
