@@ -118,6 +118,16 @@ See "Adding a lockfile format" in [ARCHITECTURE.md](ARCHITECTURE.md). In short: 
 parser in `internal/lockfile`, an entry in `supported` in `load.go`, a fixture,
 parser tests, golden cases, and README and spec updates.
 
+## The README demo
+
+`docs/demo.gif` is recorded from `docs/demo.tape` against the sample project in
+`docs/demo/`, with [vhs](https://github.com/charmbracelet/vhs). To re-record it after
+output changes (the last step needs network access):
+
+```sh
+go build -o /tmp/depwhy-demo/depwhy . && vhs docs/demo.tape
+```
+
 ## Releases
 
 Maintainers cut releases by pushing a version tag:
