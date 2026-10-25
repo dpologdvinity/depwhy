@@ -41,12 +41,14 @@ homebrew_casks:
     repository:
       owner: dpologdvinity
       name: homebrew-tap
-      token: '{{ with index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}{{ . }}{{ end }}'
+      # GoReleaser only accepts exactly this form here. The release workflow always
+      # sets the variable (possibly empty), so it is never missing.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/dpologdvinity/depwhy
     description: Explains why a package is in your dependency tree, from the lockfile, offline
-    # Pre-releases (v0.2.0-rc.1) do not update the tap, and neither does a run
-    # without the token (it expired or is unset): the release itself must not fail.
-    skip_upload: '{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}auto{{ else }}true{{ end }}'
+    # Pre-releases (v0.2.0-rc.1) do not update the tap. A run without the token skips
+    # this whole step instead (release.yml passes --skip=homebrew).
+    skip_upload: auto
     hooks:
       post:
         # The binary is not notarized; drop the macOS quarantine flag after install.

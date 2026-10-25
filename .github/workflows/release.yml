@@ -33,9 +33,11 @@ jobs:
       HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
     steps:
       - name: Homebrew token present?
+        id: brew
         run: |
           if [ -z "$HOMEBREW_TAP_GITHUB_TOKEN" ]; then
             echo "::warning::HOMEBREW_TAP_GITHUB_TOKEN is not set; the Homebrew cask will not be updated."
+            echo "skip=--skip=homebrew" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -50,7 +52,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean ${{ steps.brew.outputs.skip }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
