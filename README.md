@@ -64,6 +64,15 @@ echo "deb [signed-by=/usr/share/keyrings/depwhy.gpg] https://dpologdvinity.githu
 sudo apt update && sudo apt install depwhy
 ```
 
+With npm (any platform; downloads the matching native binary):
+
+```sh
+npm install -g @kaitlynbassford/depwhy   # installs the `depwhy` command
+npx @kaitlynbassford/depwhy lodash       # or run it once
+```
+
+The package is scoped because npm rejected the plain name `depwhy` as too similar to an existing package.
+
 Or download a binary, a `.deb`, `.rpm` or `.apk` package for Linux, a binary for macOS or
 Windows (amd64 and arm64) from the
 [releases page](https://github.com/dpologdvinity/depwhy/releases).
