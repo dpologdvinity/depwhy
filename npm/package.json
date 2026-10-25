@@ -1,5 +1,5 @@
 {
-  "name": "depwhy",
+  "name": "@kaitlynbassford/depwhy",
   "version": "0.0.0",
   "description": "Explains why a package is in your dependency tree, from the lockfile. npm, pnpm, uv and Cargo.",
   "keywords": ["dependencies", "lockfile", "dependency-tree", "npm", "pnpm", "uv", "cargo", "cli"],

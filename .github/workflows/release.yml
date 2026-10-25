@@ -105,7 +105,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           # The registry can take a moment to serve a new version.
           for attempt in 1 2 3 4 5 6; do
-            if out=$(npx --yes "depwhy@${version}" --version 2>&1); then
+            if out=$(npx --yes "@kaitlynbassford/depwhy@${version}" --version 2>&1); then
               echo "$out"
               test "$out" = "depwhy ${version}"
               exit 0
