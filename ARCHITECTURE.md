@@ -348,7 +348,8 @@ pre-releases.
 | apt repository | `apt.yml`, described below |
 | npm | `npm/`: a zero-dependency launcher that downloads and checksum-verifies the release binary; published by `release.yml` |
 
-**The npm package** (`npm/`) contains no binary. `bin/depwhy.js` finds the native
+**The npm package** (`npm/`, published as `@kaitlynbassford/depwhy`: npm rejected the
+unscoped name as too similar to `dep-why`) contains no binary. `bin/depwhy.js` finds the native
 binary under `vendor/`, downloading it first if it is missing, and runs it with the
 same arguments. `lib/install.js` picks the release asset for the machine (`platform.js`),
 downloads `checksums.txt` and the archive from the GitHub release of the same version,
