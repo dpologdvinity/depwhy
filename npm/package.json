@@ -13,7 +13,7 @@
   "license": "MIT",
   "author": "Kaitlyn Bassford",
   "bin": { "depwhy": "bin/depwhy.js" },
-  "files": ["bin", "lib", "README.md", "LICENSE"],
+  "files": ["bin", "lib", "README.md", "LICENSE", "checksums.txt"],
   "scripts": {
     "postinstall": "node lib/postinstall.js",
     "test": "node --test"

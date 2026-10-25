@@ -50,7 +50,10 @@ cp "${packages[@]}" "$site/apt/"
     -o "APT::FTPArchive::Release::Suite=stable" \
     -o "APT::FTPArchive::Release::Codename=stable" \
     -o "APT::FTPArchive::Release::Architectures=${archs% }" \
-    release . >Release
+    release . >../Release.tmp
+  # Moved into place only now: written inside apt/ it would list itself, with a hash
+  # of a half-written file.
+  mv ../Release.tmp Release
   # Release.gpg is the detached signature; InRelease is the same file clear-signed.
   gpg --batch --yes --pinentry-mode loopback --local-user "$key" --armor --detach-sign -o Release.gpg Release
   gpg --batch --yes --pinentry-mode loopback --local-user "$key" --clearsign -o InRelease Release
