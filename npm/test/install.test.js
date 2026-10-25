@@ -39,6 +39,16 @@ function fakeDownload(archive, sum) {
   return fn;
 }
 
+// assertRunnable checks the unpacked fake binary is complete. On Windows a #!/bin/sh
+// script cannot be executed, so there the contents are compared instead.
+function assertRunnable(bin) {
+  if (process.platform === 'win32') {
+    assert.match(fs.readFileSync(bin, 'utf8'), /echo fake/);
+  } else {
+    assert.equal(spawnSync(bin).stdout.toString().trim(), 'fake', 'the binary must be complete and runnable');
+  }
+}
+
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'depwhy-vendor-'));
 
@@ -92,7 +102,7 @@ test('ensureBinary survives two installs at once and leaves no temp files', asyn
   const [a, b] = await Promise.all([ensureBinary(opts()), ensureBinary(opts())]);
   assert.equal(a, b);
   assert.deepEqual(fs.readdirSync(dir), ['depwhy'], 'only the binary may remain');
-  assert.equal(spawnSync(a).stdout.toString().trim(), 'fake', 'the binary must be complete and runnable');
+  assertRunnable(a);
 });
 
 test('ensureBinary ignores a stale temp directory from an interrupted install', async () => {
@@ -101,7 +111,7 @@ test('ensureBinary ignores a stale temp directory from an interrupted install', 
   fs.mkdirSync(path.join(dir, '.tmp-stale'));
   fs.writeFileSync(path.join(dir, '.tmp-stale', 'depwhy'), 'truncated');
   const bin = await ensureBinary({ version: VERSION, platform: 'linux', arch: 'x64', dir, download: fakeDownload(archive, sha(archive)) });
-  assert.equal(spawnSync(bin).stdout.toString().trim(), 'fake');
+  assertRunnable(bin);
 });
 
 test('ensureBinary trusts the checksums bundled in the package over a download', async () => {
