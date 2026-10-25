@@ -49,7 +49,10 @@ test('ensureBinary downloads, verifies and unpacks the binary', async () => {
   const bin = await ensureBinary({ version: VERSION, platform: 'linux', arch: 'x64', dir, download });
   assert.equal(bin, path.join(dir, 'depwhy'));
   assert.ok(fs.existsSync(bin));
-  assert.ok(fs.statSync(bin).mode & 0o111, 'binary must be executable');
+  if (process.platform !== 'win32') {
+    // Windows has no execute bit; there the .exe extension is what matters.
+    assert.ok(fs.statSync(bin).mode & 0o111, 'binary must be executable');
+  }
   assert.equal(fs.readdirSync(dir).length, 1, 'the archive must be cleaned up');
 });
 
