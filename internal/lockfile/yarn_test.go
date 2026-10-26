@@ -90,3 +90,23 @@ func TestParseYarnUnresolved(t *testing.T) {
 		t.Fatalf("expected unresolved warning, got %v", warns)
 	}
 }
+
+func TestResolveYarnBerryDirect(t *testing.T) {
+	descMap := map[string]int{
+		"exact@npm:1.0.0": 1,
+		"spec-only":       2,
+		"prefix@npm:2.0":  3,
+	}
+	if idx, ok := resolveYarnBerry(descMap, "exact", "npm:1.0.0"); !ok || idx != 1 {
+		t.Fatalf("exact match failed: %d, %v", idx, ok)
+	}
+	if idx, ok := resolveYarnBerry(descMap, "ignored", "spec-only"); !ok || idx != 2 {
+		t.Fatalf("spec-only match failed: %d, %v", idx, ok)
+	}
+	if idx, ok := resolveYarnBerry(descMap, "prefix", "other"); !ok || idx != 3 {
+		t.Fatalf("prefix match failed: %d, %v", idx, ok)
+	}
+	if _, ok := resolveYarnBerry(descMap, "nonexistent", "other"); ok {
+		t.Fatal("expected failure for nonexistent")
+	}
+}

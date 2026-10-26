@@ -1,6 +1,8 @@
 package lockfile
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -117,5 +119,45 @@ missing = ">=1.0.0"
 	}
 	if len(warns) == 0 || !strings.Contains(warns[0], "unresolved dependency missing") {
 		t.Fatalf("expected unresolved warning, got %v", warns)
+	}
+}
+
+func TestParsePoetryPEP621(t *testing.T) {
+	d := t.TempDir()
+	pyprojectContent := `
+[project]
+name = "pep621-app"
+version = "0.2.0"
+dependencies = [
+    "requests >= 2.0.0",
+    "python >= 3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+`
+	lockContent := `
+[[package]]
+name = "requests"
+version = "2.28.0"
+category = "main"
+
+[[package]]
+name = "pytest"
+version = "7.0.0"
+category = "dev"
+`
+	if err := os.WriteFile(filepath.Join(d, "pyproject.toml"), []byte(pyprojectContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := filepath.Join(d, "poetry.lock")
+	g, warns, err := ParsePoetry(lockPath, []byte(lockContent))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("ParsePoetry PEP621: err=%v warns=%v", err, warns)
+	}
+	if len(g.Roots) != 1 || g.Nodes[g.Roots[0]].Name != "pep621-app" {
+		t.Fatalf("roots = %v", g.Roots)
 	}
 }

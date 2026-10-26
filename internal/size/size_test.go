@@ -150,6 +150,47 @@ func TestPythonSizeWithRecord(t *testing.T) {
 	if size != want {
 		t.Fatalf("PythonSize = %d, want %d", size, want)
 	}
+
+	// Cached lookup
+	cachedSize, err := s.PythonSize(sitePackages, "demo-pkg", "1.0.0")
+	if err != nil || cachedSize != want {
+		t.Fatalf("cachedSize = %d, want %d", cachedSize, want)
+	}
+
+	// Fallback without RECORD
+	distInfo2 := filepath.Join(sitePackages, "fallback_pkg-2.0.0.dist-info")
+	pkgDir2 := filepath.Join(sitePackages, "fallback_pkg")
+	if err := os.MkdirAll(distInfo2, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(pkgDir2, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir2, "mod.py"), []byte("abc"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fSize, err := s.PythonSize(sitePackages, "fallback-pkg", "2.0.0")
+	if err != nil || fSize != 3 {
+		t.Fatalf("fallback size = %d, want 3 (err: %v)", fSize, err)
+	}
+
+	// Direct directory fallback (no dist-info)
+	pkgDir3 := filepath.Join(sitePackages, "direct_pkg")
+	if err := os.MkdirAll(pkgDir3, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir3, "mod.py"), []byte("12345"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dSize, err := s.PythonSize(sitePackages, "direct_pkg", "3.0.0")
+	if err != nil || dSize != 5 {
+		t.Fatalf("direct size = %d, want 5 (err: %v)", dSize, err)
+	}
+
+	// Missing package returns error
+	if _, err := s.PythonSize(sitePackages, "missing_pkg", "1.0.0"); err == nil {
+		t.Fatal("expected error for missing python package")
+	}
 }
 
 func TestFindPythonSitePackages(t *testing.T) {
@@ -179,5 +220,38 @@ func TestFindPythonSitePackages(t *testing.T) {
 	}
 	if foundCustom != customSite {
 		t.Fatalf("foundCustom %q, want %q", foundCustom, customSite)
+	}
+
+	// Windows fallback (Lib/site-packages)
+	winVenv := t.TempDir()
+	winSite := filepath.Join(winVenv, "Lib", "site-packages")
+	if err := os.MkdirAll(winSite, 0755); err != nil {
+		t.Fatal(err)
+	}
+	foundWin, err := FindPythonSitePackages(projectDir, winVenv)
+	if err != nil || foundWin != winSite {
+		t.Fatalf("foundWin %q, want %q (err: %v)", foundWin, winSite, err)
+	}
+
+	// Lib fallback without pythonX.Y (lib/site-packages)
+	altVenv := t.TempDir()
+	altSite := filepath.Join(altVenv, "lib", "site-packages")
+	if err := os.MkdirAll(altSite, 0755); err != nil {
+		t.Fatal(err)
+	}
+	foundAlt, err := FindPythonSitePackages(projectDir, altVenv)
+	if err != nil || foundAlt != altSite {
+		t.Fatalf("foundAlt %q, want %q (err: %v)", foundAlt, altSite, err)
+	}
+
+	// Missing venv error
+	if _, err := FindPythonSitePackages(projectDir, filepath.Join(projectDir, "nonexistent")); err == nil {
+		t.Fatal("expected error for nonexistent venv")
+	}
+
+	// No site-packages in venv error
+	emptyVenv := t.TempDir()
+	if _, err := FindPythonSitePackages(projectDir, emptyVenv); err == nil {
+		t.Fatal("expected error for venv with no site-packages")
 	}
 }

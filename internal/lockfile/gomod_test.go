@@ -80,3 +80,18 @@ func TestParseGoModInvalid(t *testing.T) {
 		t.Fatalf("expected parse error, got %v", err)
 	}
 }
+
+func TestParseGoModWithGraph(t *testing.T) {
+	path := "../../go.mod"
+	data := readFixture(t, path)
+	g, _, err := ParseGoMod(path, data, true)
+	if err != nil {
+		t.Fatalf("ParseGoMod with graph: %v", err)
+	}
+	if len(g.Roots) != 1 || g.Nodes[g.Roots[0]].Name != "github.com/dpologdvinity/depwhy" {
+		t.Fatalf("roots = %v", g.Roots)
+	}
+	if len(g.Nodes) == 0 {
+		t.Fatal("expected nodes")
+	}
+}

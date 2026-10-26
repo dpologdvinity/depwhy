@@ -135,6 +135,19 @@ func TestLoadDispatches(t *testing.T) {
 	if err != nil || len(g.Nodes) != 3 {
 		t.Fatalf("err=%v", err)
 	}
+	g, _, err = Load(Found{Path: "../../testdata/projects/uv/uv.lock.fixture", Ecosystem: "python", Format: "uv"})
+	if err != nil || len(g.Nodes) != 5 {
+		t.Fatalf("err=%v nodes=%d", err, len(g.Nodes))
+	}
+	g, _, err = Load(Found{Path: "../../testdata/projects/cargo/Cargo.lock.fixture", Ecosystem: "cargo", Format: "cargo"})
+	if err != nil || len(g.Nodes) != 6 {
+		t.Fatalf("err=%v", err)
+	}
+	// Cargo with metadata fallback when manifest is missing
+	g, ws, err := Load(Found{Path: "../../testdata/projects/cargo/Cargo.lock.fixture", Ecosystem: "cargo", Format: "cargo", CargoMetadata: true})
+	if err != nil || len(g.Nodes) != 6 || len(ws) == 0 {
+		t.Fatalf("CargoMetadata fallback: g=%v ws=%v err=%v", g, ws, err)
+	}
 	if _, _, err := Load(Found{Path: "nope/uv.lock", Format: "uv"}); err == nil {
 		t.Fatal("want read error")
 	}
