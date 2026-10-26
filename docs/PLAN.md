@@ -591,3 +591,42 @@ Files: `README.md`, `ARCHITECTURE.md`, `docs/ROADMAP.md`
 - Document v0.3 features and limitations.
 - Review and release prep.
 Commit: `docs: update documentation for v0.3`
+
+---
+
+# v0.4 plan: more formats
+
+Behavior is defined in `docs/SPEC.md` §14.
+
+## Task 28: Yarn parser
+Files: `internal/lockfile/yarn.go`, `internal/lockfile/yarn_test.go`, fixtures
+- Support Yarn Berry (YAML) and Yarn Classic (v1).
+- Parse descriptors, resolutions, and dependencies.
+Commit: `feat(lockfile): add yarn.lock parser for berry and classic`
+
+## Task 29: Bun parser
+Files: `internal/lockfile/bun.go`, `internal/lockfile/bun_test.go`, fixtures
+- Parse Bun JSONC `bun.lock` format (bun >= 1.2).
+Commit: `feat(lockfile): add bun.lock parser`
+
+## Task 30: Poetry parser
+Files: `internal/lockfile/poetry.go`, `internal/lockfile/poetry_test.go`, fixtures
+- Parse Poetry TOML format with category mappings (main -> prod, dev -> dev).
+Commit: `feat(lockfile): add poetry.lock parser`
+
+## Task 31: Go module parser
+Files: `internal/lockfile/gomod.go`, `internal/lockfile/gomod_test.go`, fixtures
+- Parse `go.mod` direct and indirect requirements.
+Commit: `feat(lockfile): add go.mod parser`
+
+## Task 32: Cargo accuracy flag
+Files: `internal/lockfile/cargo.go`, `internal/cli/cli.go`
+- Add `--cargo-metadata` support invoking `cargo metadata`.
+Commit: `feat(lockfile): add cargo metadata integration`
+
+## Task 33: CLI detection, goldens, and docs
+Files: `internal/lockfile/load.go`, `testdata/golden/*`, `README.md`
+- Wire new formats into `Detect` and `Load`.
+- Add golden tests for yarn, bun, poetry, and go.mod.
+- Update docs and release prep.
+Commit: `feat(cli): wire v0.4 lockfile formats and add golden tests`

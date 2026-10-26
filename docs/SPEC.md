@@ -600,3 +600,63 @@ directories present on disk, behavior is identical to v0.2.
 - `internal/size` tests cover symlinks, missing directories, npm nested paths, and python site-packages.
 - Golden tests for `--remove` with size and `--heaviest`.
 - Documentation updated in README, ARCHITECTURE, and ROADMAP.
+
+## 14. v0.4: More formats
+
+v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
+
+### 14.1 Goals and non-goals
+- Add parsers for four additional lockfile and manifest formats:
+  1. `yarn.lock`: Yarn Berry (v2+, YAML with `__metadata`) and Yarn Classic (v1, line-oriented format).
+  2. `bun.lock`: Bun v1.2+ JSONC lockfile format.
+  3. `poetry.lock`: Poetry TOML lockfile format.
+  4. `go.mod`: Go module dependencies (`go.mod` / `go.sum`).
+  5. Cargo precision: `--cargo-metadata` to query `cargo metadata --format-version 1` when available.
+- Non-goals:
+  - No downloading external packages or remote registry lookups during lockfile parsing.
+  - `go.sum` without `go.mod` has no directed dependency tree and is not loaded alone.
+
+### 14.2 Format parsing specifications
+
+#### 14.2.1 Yarn `yarn.lock`
+- **Berry (v2+)**: YAML format containing top-level `__metadata`.
+  - Keys are comma-separated descriptor lists (e.g. `"pkg@npm:^1.0.0, pkg@npm:^1.0.1"`).
+  - Values contain `version`, `resolution`, and `dependencies`.
+  - Root: entry matching `"."` or root workspace descriptors.
+- **Classic (v1)**: Line-oriented custom format starting with `# yarn lockfile v1`.
+  - Blocks begin with quoted descriptor lines followed by indented properties.
+  - Parse `version` string and `dependencies` mapping.
+  - Root: synthetic root created from project manifest or direct entries.
+
+#### 14.2.2 Bun `bun.lock`
+- Bun 1.2+ JSONC lockfile format.
+- Top-level `lockfileVersion`, `packages` dictionary, and `workspaces`.
+- Root: `""` or workspace member directories.
+- Package entries declare name, version, and dependency edges.
+
+#### 14.2.3 Poetry `poetry.lock`
+- TOML format with `[[package]]` tables.
+- Fields: `name`, `version`, `category` (`main` -> Prod, `dev` -> Dev), and `dependencies` table.
+- Root: package defined by `pyproject.toml` in same directory, or directory name fallback.
+
+#### 14.2.4 Go `go.mod`
+- Parses `module <path>`, `require (...)`, and `replace (...)`.
+- Requirements lacking `// indirect` comment are marked Prod edges from the root module.
+- Requirements with `// indirect` are marked indirect edges.
+- When `go` binary is available on PATH and `--go-graph` is passed, `go mod graph` output refines transitive edges.
+
+#### 14.2.5 Cargo Precision
+- When `--cargo-metadata` is set and `cargo` is found on PATH, `cargo metadata --format-version 1` is executed.
+- Accurately discriminates Dev, Build, and Prod dependencies and discovers precise workspace members.
+
+### 14.3 Ecosystem detection order
+Updated lockfile detection priority per directory:
+1. npm: `pnpm-lock.yaml` > `yarn.lock` > `bun.lock` > `package-lock.json`
+2. python: `uv.lock` > `poetry.lock`
+3. cargo: `Cargo.lock`
+4. go: `go.mod`
+
+### 14.4 Definition of done (v0.4)
+- Dedicated parsers in `internal/lockfile` with edge-case tests for each new format.
+- Golden tests for yarn, bun, poetry, and go.mod fixtures.
+- Detection and CLI help documentation updated.
