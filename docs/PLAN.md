@@ -555,3 +555,39 @@ Commit: `feat(cli): add --online and --refresh`
 
 README, ARCHITECTURE, ROADMAP; a manual run against the real services; whole-branch
 review; tag `v0.2.0`.
+
+---
+
+# v0.3 plan: size and "what does it cost me"
+
+Behavior is defined in `docs/SPEC.md` §13.
+
+## Task 23: size package
+Files: `internal/size/size.go`, `internal/size/size_test.go`
+- Calculate directory on-disk sizes for installed npm and python packages.
+- Handle missing dirs, symlinks, permissions gracefully.
+Commit: `feat(size): add installed directory size scanner`
+
+## Task 24: graph integration
+Files: `internal/graph/remove.go`, `internal/graph/remove_test.go`, `internal/graph/heaviest.go`
+- Compute total freed size from remove analysis freed sets.
+- Rank direct dependencies by exclusive freed size (`Heaviest`).
+Commit: `feat(graph): add transitive freed size calculation and heaviest ranking`
+
+## Task 25: rendering
+Files: `internal/render/text.go`, `internal/render/json.go`, `internal/render/size.go`
+- Add human-readable size formatting (B, KB, MB, GB).
+- Annotate text and JSON outputs for why, remove, and heaviest modes.
+Commit: `feat(render): format on-disk sizes in text and json`
+
+## Task 26: CLI wiring and goldens
+Files: `internal/cli/cli.go`, `internal/cli/cli_test.go`, test fixtures
+- Wire `--heaviest` and `--venv` flags.
+- Add golden tests with mock/fixture install directories.
+Commit: `feat(cli): wire --heaviest and --venv flags`
+
+## Task 27: docs and verification
+Files: `README.md`, `ARCHITECTURE.md`, `docs/ROADMAP.md`
+- Document v0.3 features and limitations.
+- Review and release prep.
+Commit: `docs: update documentation for v0.3`

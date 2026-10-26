@@ -549,3 +549,54 @@ output for the annotated forms.
 Everything in §12 behaves as described, tests and lint are green, a manual run against
 the real services on one project per ecosystem matches the registries' own data,
 README and ARCHITECTURE document the feature, and `v0.2.0` is released.
+
+## 13. v0.3: Size and "what does it cost me"
+
+v0.3 adds on-disk size inspection and removal savings analysis. Without installed package
+directories present on disk, behavior is identical to v0.2.
+
+### 13.1 Goals and non-goals
+- On-disk size of installed packages:
+  - npm: look up installed directory under `node_modules/<path>` from lockfile package key.
+  - Python (uv): inspect virtualenv site-packages (`.venv` in current dir, or `--venv`).
+  - Cargo: skipped (target directory cache does not map cleanly to installed crate disk footprints; report note or omit).
+- `--remove <pkg>` reports total disk space freed: `would free ~X MB (N packages)`.
+- `depwhy --heaviest [N]`: rank direct dependencies by exclusive transitive size freed.
+- Offline, read-only on disk, non-blocking if installed directories are missing.
+- Non-goals: no downloading archives to compute uncompressed sizes; only locally installed packages are measured.
+
+### 13.2 Flags
+| Flag | Type | Default | Meaning |
+|---|---|---|---|
+| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. |
+| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` in target directory). |
+
+### 13.3 Measurement rules
+- Size is computed by summing regular file sizes in the package's install directory. Symlinks are not followed outside the package tree.
+- Format sizes in human-readable units: `B`, `KB`, `MB`, `GB` (base 1024).
+- Missing install directories produce no error; sizes appear as unavailable and JSON fields report `null`.
+
+### 13.4 Text output
+- In why mode: `<name>@<version> (<size>)` when size is known.
+- In remove mode: `would remove N packages (freeing ~X MB):`.
+- In heaviest mode:
+  ```
+  npm · package-lock.json
+  Top 10 heaviest direct dependencies by exclusive size:
+    1. webpack@5.89.0         ~42.1 MB (freed: 18 packages)
+    2. typescript@5.3.3       ~31.4 MB (freed: 1 package)
+  ```
+
+### 13.5 JSON output
+- Package node objects gain `"size_bytes": <int> | null`.
+- Remove result objects gain `"freed_size_bytes": <int> | null`.
+- Heaviest mode outputs `mode: "heaviest"` with ranked direct dependency entries.
+
+### 13.6 Package layout
+- New package `internal/size` provides directory measurement and caching.
+- `internal/cli` detects installed package directories and passes size providers to render/graph.
+
+### 13.7 Definition of done (v0.3)
+- `internal/size` tests cover symlinks, missing directories, npm nested paths, and python site-packages.
+- Golden tests for `--remove` with size and `--heaviest`.
+- Documentation updated in README, ARCHITECTURE, and ROADMAP.
