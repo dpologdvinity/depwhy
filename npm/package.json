@@ -1,8 +1,8 @@
 {
   "name": "@kaitlynbassford/depwhy",
   "version": "0.0.0",
-  "description": "Explains why a package is in your dependency tree, from the lockfile. npm, pnpm, uv and Cargo.",
-  "keywords": ["dependencies", "lockfile", "dependency-tree", "npm", "pnpm", "uv", "cargo", "cli"],
+  "description": "Explains why a package is in your dependency tree, from the lockfile. npm, pnpm, yarn, bun, uv, poetry, cargo, and go.",
+  "keywords": ["dependencies", "lockfile", "dependency-tree", "npm", "pnpm", "yarn", "bun", "uv", "poetry", "cargo", "go", "cli"],
   "homepage": "https://github.com/dpologdvinity/depwhy",
   "bugs": "https://github.com/dpologdvinity/depwhy/issues",
   "repository": {
