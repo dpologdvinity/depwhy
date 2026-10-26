@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 type fakeOnline struct {
 	osvFail  bool
 	requests atomic.Int32
+	queried  sync.Map
 }
 
 // useFakeOnline points --online at a fresh fake service with an empty cache, for
@@ -42,6 +44,7 @@ func useFakeOnline(t *testing.T) *fakeOnline {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		var results []string
 		for _, q := range req.Queries {
+			f.queried.Store(q.Package.Name, true)
 			id := ""
 			switch {
 			case q.Package.Name == "d" && q.Package.Ecosystem == "npm":
@@ -55,6 +58,11 @@ func useFakeOnline(t *testing.T) *fakeOnline {
 	})
 	mux.HandleFunc("/npm/", func(w http.ResponseWriter, r *http.Request) {
 		f.requests.Add(1)
+		pkg := strings.TrimPrefix(r.URL.Path, "/npm/")
+		if idx := strings.Index(pkg, "/"); idx != -1 {
+			pkg = pkg[:idx]
+		}
+		f.queried.Store(pkg, true)
 		if r.URL.Path == "/npm/a/1.0.0" {
 			fmt.Fprint(w, `{"deprecated":"use b instead"}`)
 			return
@@ -177,5 +185,18 @@ func TestOnlineNotFoundMakesNoRequests(t *testing.T) {
 	code, _, _ := run("-C", project("npm"), "--online", "zzz")
 	if code != 1 || f.requests.Load() != 0 {
 		t.Fatalf("code=%d requests=%d", code, f.requests.Load())
+	}
+}
+
+// TestOnlineNeverQueriesRootPackage checks that root packages (e.g. "app") are never
+// queried against OSV or registries (SPEC §12.3 and §12.6).
+func TestOnlineNeverQueriesRootPackage(t *testing.T) {
+	f := useFakeOnline(t)
+	code, out, _ := run("-C", project("npm"), "--no-color", "--online", "d")
+	if code != 0 {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	if _, queried := f.queried.Load("app"); queried {
+		t.Fatal("root package 'app' must never be queried online")
 	}
 }

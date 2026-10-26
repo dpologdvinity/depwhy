@@ -114,6 +114,28 @@ test('ensureBinary ignores a stale temp directory from an interrupted install', 
   assertRunnable(bin);
 });
 
+test('ensureBinary handles rename collision if binary already exists', async () => {
+  const archive = makeArchive();
+  const dir = tmp();
+  const download = fakeDownload(archive, sha(archive));
+  const origRename = fs.renameSync;
+  let renameCalls = 0;
+  fs.renameSync = (from, to) => {
+    renameCalls++;
+    origRename(from, to);
+    const err = new Error('EPERM: operation not permitted');
+    err.code = 'EPERM';
+    throw err;
+  };
+  try {
+    const bin = await ensureBinary({ version: VERSION, platform: 'linux', arch: 'x64', dir, download });
+    assert.ok(fs.existsSync(bin));
+    assert.equal(renameCalls, 1);
+  } finally {
+    fs.renameSync = origRename;
+  }
+});
+
 test('ensureBinary trusts the checksums bundled in the package over a download', async () => {
   const archive = makeArchive();
   const dir = tmp();

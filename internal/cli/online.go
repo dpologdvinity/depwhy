@@ -23,6 +23,9 @@ func (s *session) lookup(shown map[*graph.Graph][]int) map[*graph.Graph]render.N
 	var pkgs []health.Pkg
 	for _, g := range s.graphs {
 		for _, n := range shown[g] {
+			if g.Nodes[n].Root {
+				continue
+			}
 			pkgs = append(pkgs, health.Pkg{Ecosystem: g.Ecosystem, Name: g.Nodes[n].Name, Version: g.Nodes[n].Version})
 		}
 	}

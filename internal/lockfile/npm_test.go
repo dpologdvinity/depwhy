@@ -125,7 +125,7 @@ func TestParseNPMWorkspace(t *testing.T) {
 	}
 }
 
-// TestParseNPMV1Unsupported checks the error for lockfileVersion 1.
+// TestParseNPMV1Unsupported checks the error for lockfileVersion 1 or missing.
 func TestParseNPMV1Unsupported(t *testing.T) {
 	_, _, err := ParseNPM("package-lock.json", readFixture(t, "../../testdata/edge/npm-v1/package-lock.json"))
 	if err == nil || !strings.Contains(err.Error(), "package-lock.json lockfileVersion 1 is not supported; regenerate it with npm >= 7 (npm install)") {
@@ -133,6 +133,11 @@ func TestParseNPMV1Unsupported(t *testing.T) {
 	}
 	if !strings.HasPrefix(err.Error(), "parse package-lock.json: ") {
 		t.Fatalf("err not wrapped: %v", err)
+	}
+
+	_, _, err = ParseNPM("package-lock.json", []byte(`{}`))
+	if err == nil || !strings.Contains(err.Error(), "package-lock.json lockfileVersion 1 is not supported; regenerate it with npm >= 7 (npm install)") {
+		t.Fatalf("err for missing lockfileVersion = %v", err)
 	}
 }
 

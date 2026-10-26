@@ -72,12 +72,12 @@ func (c *Client) Lookup(ctx context.Context, pkgs []Pkg) (map[Pkg]Info, []string
 	for i, p := range misses {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func() {
+		go func(i int, p Pkg) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			info, err := c.status(ctx, p)
 			outcomes[i] = outcome{info, err}
-		}()
+		}(i, p)
 	}
 	wg.Wait()
 

@@ -278,7 +278,7 @@ func (s *session) query() int {
 			continue
 		}
 		whys[i] = m.g.Why(m.n, graph.WhyOpts{Depth: o.depth, All: o.all, Prod: o.prod})
-		shown[m.g] = append(shown[m.g], treeNodes(whys[i].Tree)...)
+		shown[m.g] = append(shown[m.g], treeNodes(m.g, whys[i].Tree)...)
 	}
 	notes := s.lookup(shown)
 
@@ -331,11 +331,11 @@ func (s *session) notFound(doc *render.Doc, name string, devOnly bool) int {
 
 // treeNodes lists the package nodes printed in a why tree, root leaves and the
 // "…" placeholder excluded.
-func treeNodes(t *graph.TreeNode) []int {
+func treeNodes(g *graph.Graph, t *graph.TreeNode) []int {
 	var out []int
 	var walk func(*graph.TreeNode)
 	walk = func(n *graph.TreeNode) {
-		if n.Node >= 0 {
+		if n.Node >= 0 && !g.Nodes[n.Node].Root {
 			out = append(out, n.Node)
 		}
 		for _, c := range n.Children {

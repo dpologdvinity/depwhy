@@ -91,7 +91,11 @@ async function ensureBinary({
     const unpacked = path.join(work, t.exe);
     if (!fs.existsSync(unpacked)) throw new Error(`${name} did not contain ${t.exe}`);
     fs.chmodSync(unpacked, 0o755);
-    fs.renameSync(unpacked, bin); // atomic; a concurrent installer just wins with the same file
+    try {
+      fs.renameSync(unpacked, bin); // atomic; a concurrent installer just wins with the same file
+    } catch (err) {
+      if (!fs.existsSync(bin)) throw err;
+    }
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }

@@ -84,8 +84,12 @@ func ParseNPM(path string, data []byte) (*graph.Graph, []string, error) {
 	if err := json.Unmarshal(data, &lock); err != nil {
 		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+	ver := lock.LockfileVersion
+	if ver <= 1 {
+		ver = 1
+	}
 	if lock.LockfileVersion != 2 && lock.LockfileVersion != 3 {
-		return nil, nil, fmt.Errorf("parse %s: package-lock.json lockfileVersion %d is not supported; regenerate it with npm >= 7 (npm install)", path, lock.LockfileVersion)
+		return nil, nil, fmt.Errorf("parse %s: package-lock.json lockfileVersion %d is not supported; regenerate it with npm >= 7 (npm install)", path, ver)
 	}
 	keys := make([]string, 0, len(lock.Packages))
 	for k := range lock.Packages {
