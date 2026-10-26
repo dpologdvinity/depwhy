@@ -104,6 +104,10 @@ func TestLoadDispatches(t *testing.T) {
 	if err != nil || len(g.Nodes) != 6 {
 		t.Fatalf("err=%v", err)
 	}
+	g, _, err = Load(Found{Path: "../../testdata/edge/yarn-classic/yarn.lock", Ecosystem: "npm", Format: "yarn"})
+	if err != nil || len(g.Nodes) != 5 {
+		t.Fatalf("err=%v", err)
+	}
 	if _, _, err := Load(Found{Path: "nope/uv.lock", Format: "uv"}); err == nil {
 		t.Fatal("want read error")
 	}
@@ -115,7 +119,7 @@ func TestLoadUnknownFormat(t *testing.T) {
 	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Load(Found{Path: p, Format: "yarn"}); err == nil {
+	if _, _, err := Load(Found{Path: p, Format: "bogus"}); err == nil {
 		t.Fatal("want error")
 	}
 }

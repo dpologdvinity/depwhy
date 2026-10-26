@@ -101,6 +101,8 @@ func Load(f Found) (*graph.Graph, []string, error) {
 		return ParseNPM(f.Path, data)
 	case "pnpm":
 		return ParsePnpm(f.Path, data)
+	case "yarn":
+		return ParseYarn(f.Path, data)
 	case "uv":
 		return ParseUV(f.Path, data)
 	case "cargo":

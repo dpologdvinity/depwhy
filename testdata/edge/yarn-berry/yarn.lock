@@ -1,0 +1,44 @@
+__metadata:
+  version: 6
+  cacheKey: 8
+
+"app@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "app@workspace:."
+  dependencies:
+    a: "npm:^1.0.0"
+  peerDependencies:
+    b: "npm:^1.0.0"
+
+"a@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "a@npm:1.0.0"
+  dependencies:
+    c: "npm:^1.0.0"
+    d: "npm:^1.0.0"
+  checksum: 12345
+  languageName: node
+  linkType: hard
+
+"b@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "b@npm:1.0.0"
+  dependencies:
+    d: "npm:^1.0.0"
+  checksum: 12345
+  languageName: node
+  linkType: hard
+
+"c@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "c@npm:1.0.0"
+  checksum: 12345
+  languageName: node
+  linkType: hard
+
+"d@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "d@npm:1.0.0"
+  checksum: 12345
+  languageName: node
+  linkType: hard
