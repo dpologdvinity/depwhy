@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "mode": "remove",
+  "query": {
+    "name": "tool",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "admin/package-lock.json",
+      "package": {
+        "name": "tool",
+        "version": "1.0.0"
+      },
+      "direct": true,
+      "still_needed": false,
+      "freed": [
+        {
+          "name": "shared",
+          "version": "2.0.0"
+        },
+        {
+          "name": "tool",
+          "version": "1.0.0"
+        }
+      ],
+      "kept": [],
+      "required_by": []
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "web/package-lock.json",
+      "package": {
+        "name": "tool",
+        "version": "1.0.0"
+      },
+      "direct": true,
+      "still_needed": false,
+      "freed": [
+        {
+          "name": "shared",
+          "version": "1.0.0"
+        },
+        {
+          "name": "tool",
+          "version": "1.0.0"
+        }
+      ],
+      "kept": [],
+      "required_by": []
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

@@ -1,0 +1,233 @@
+{
+  "schema": 1,
+  "mode": "why",
+  "query": {
+    "name": "shared",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "admin/package-lock.json",
+      "package": {
+        "name": "shared",
+        "version": "2.0.0"
+      },
+      "dev_only": false,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "admin",
+            "version": "",
+            "root": true
+          },
+          {
+            "name": "tool",
+            "version": "1.0.0",
+            "kind": "prod"
+          },
+          {
+            "name": "shared",
+            "version": "2.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "admin",
+          "name": "tool",
+          "version": "1.0.0",
+          "kind": "prod"
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "admin/package-lock.json",
+      "package": {
+        "name": "shared",
+        "version": "3.0.0"
+      },
+      "dev_only": true,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "admin",
+            "version": "",
+            "root": true
+          },
+          {
+            "name": "dev-tool",
+            "version": "1.0.0",
+            "kind": "dev"
+          },
+          {
+            "name": "shared",
+            "version": "3.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "admin",
+          "name": "dev-tool",
+          "version": "1.0.0",
+          "kind": "dev"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "lockfile": "api/Cargo.lock",
+      "package": {
+        "name": "shared",
+        "version": "9.0.0"
+      },
+      "dev_only": false,
+      "direct": true,
+      "paths": [
+        [
+          {
+            "name": "api",
+            "version": "0.1.0",
+            "root": true
+          },
+          {
+            "name": "shared",
+            "version": "9.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "api",
+          "name": "shared",
+          "version": "9.0.0",
+          "kind": "prod"
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "web/package-lock.json",
+      "package": {
+        "name": "shared",
+        "version": "1.0.0"
+      },
+      "dev_only": false,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "web",
+            "version": "",
+            "root": true
+          },
+          {
+            "name": "tool",
+            "version": "1.0.0",
+            "kind": "prod"
+          },
+          {
+            "name": "shared",
+            "version": "1.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "web",
+          "name": "tool",
+          "version": "1.0.0",
+          "kind": "prod"
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "web/package-lock.json",
+      "package": {
+        "name": "shared",
+        "version": "3.0.0"
+      },
+      "dev_only": true,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "web",
+            "version": "",
+            "root": true
+          },
+          {
+            "name": "dev-tool",
+            "version": "1.0.0",
+            "kind": "dev"
+          },
+          {
+            "name": "shared",
+            "version": "3.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "web",
+          "name": "dev-tool",
+          "version": "1.0.0",
+          "kind": "dev"
+        }
+      ]
+    },
+    {
+      "ecosystem": "python",
+      "lockfile": "worker/poetry.lock",
+      "package": {
+        "name": "shared",
+        "version": "8.0.0"
+      },
+      "dev_only": false,
+      "direct": true,
+      "paths": [
+        [
+          {
+            "name": "worker",
+            "version": "0.1.0",
+            "root": true
+          },
+          {
+            "name": "shared",
+            "version": "8.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "worker",
+          "name": "shared",
+          "version": "8.0.0",
+          "kind": "prod"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

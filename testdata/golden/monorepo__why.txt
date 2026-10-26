@@ -1,0 +1,27 @@
+shared@2.0.0  npm · admin/package-lock.json
+└── tool@1.0.0
+    └── admin (root, prod)
+
+shared@3.0.0  npm · admin/package-lock.json
+└── dev-tool@1.0.0
+    └── admin (root, dev)
+
+shared@9.0.0  cargo · api/Cargo.lock
+└── api (root, prod)
+direct dependency of api (prod)
+
+shared@1.0.0  npm · web/package-lock.json
+└── tool@1.0.0
+    └── web (root, prod)
+
+shared@3.0.0  npm · web/package-lock.json
+└── dev-tool@1.0.0
+    └── web (root, dev)
+
+shared@8.0.0  python · worker/poetry.lock
+└── worker (root, prod)
+direct dependency of worker (prod)
+
+--- stderr
+
+--- exit=0

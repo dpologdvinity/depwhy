@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "mode": "heaviest",
+  "query": null,
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "admin/package-lock.json",
+      "heaviest": []
+    },
+    {
+      "ecosystem": "cargo",
+      "lockfile": "api/Cargo.lock",
+      "heaviest": []
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "web/package-lock.json",
+      "heaviest": []
+    },
+    {
+      "ecosystem": "python",
+      "lockfile": "worker/poetry.lock",
+      "heaviest": []
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

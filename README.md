@@ -40,6 +40,7 @@ c  2 versions
 - **Dupes**: packages installed at more than one version, and which direct dependencies pull in each.
 - **Heaviest**: direct dependencies ranked by exclusive transitive on-disk size freed.
 - **Polyglot**: if a directory holds lockfiles for several ecosystems, all of them are loaded and searched.
+- **Monorepos**: `-r` discovers nested projects, respects `.gitignore`, and groups results by lockfile path. `--dupes --across` finds version conflicts between projects.
 - **Offline by default, read-only always**: no network unless you pass `--online`, no package manager needed, no lockfile or manifest changed.
 - **Health info (opt-in)**: with `--online`, packages show known security advisories and deprecated or yanked status.
 - **Scriptable**: `--json` gives a stable, documented output.
@@ -102,6 +103,8 @@ depwhy lodash@4.17.21             # only that version
 depwhy @babel/core                # scoped npm names work
 depwhy --remove express           # what would removing express free?
 depwhy --dupes --prod             # duplicates, ignoring dev dependencies
+depwhy -r react                   # search every project in a monorepo
+depwhy -r --dupes --across        # version conflicts across projects
 depwhy --heaviest                 # top 10 heaviest direct dependencies
 depwhy -C ../other-project react  # look somewhere else
 depwhy --json lodash | jq .       # machine-readable
@@ -117,11 +120,13 @@ for Cargo. If nothing matches, depwhy suggests close names.
 |---|---|
 | `--remove` | Removal-impact mode. The argument is a direct dependency. |
 | `--dupes` | List packages installed at more than one version. |
+| `--across` | With `--dupes`, aggregate versions across all loaded lockfiles. |
 | `--heaviest` | Rank direct dependencies by exclusive transitive size freed (default 10). |
 | `--venv` | Path to Python virtualenv (default `.venv` in target directory). |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
+| `-r`, `--recursive` | Search subdirectories, respecting `.gitignore`; cannot be combined with `-l`. |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |
-| `-e`, `--ecosystem` | Restrict to `npm`, `python`, or `cargo`. |
+| `-e`, `--ecosystem` | Restrict to `npm`, `python`, `cargo`, or `go`. |
 | `--prod` | Ignore dev dependencies, and everything reachable only through them. |
 | `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). |
 | `--all` | Print all paths without the 10-path cap. |
@@ -195,7 +200,26 @@ Detection priority per directory:
 - go: `go.mod`
 
 If multiple lockfiles are present for an ecosystem, the higher-priority file is used and depwhy warns.
-Only the given directory is checked; there is no recursive scan.
+By default, only the given directory is checked. Add `-r` to find nested projects.
+Each directory applies the same priority independently. Recursive discovery skips
+`.git`, `node_modules`, `.venv`, `venv`, `target`, `dist`, `build`, `vendor`,
+`__pycache__` and `.tox`, honors nested `.gitignore` files, and does not follow
+directory symlinks. Parent/global Git ignores and the Git index are not consulted.
+Output identifies each lockfile by its path relative to `-C`, including in JSON.
+Installed sizes use each discovered project's own install directory.
+
+Find version conflicts across all discovered projects, or select files explicitly:
+
+```sh
+depwhy -C path/to/repo -r --dupes --across --prod
+depwhy --dupes --across -l web/package-lock.json -l admin/package-lock.json
+depwhy -r --dupes --across --json
+```
+
+`--across` groups packages within each ecosystem and includes conflicts within
+individual files. It does not enable recursion itself. Its JSON adds
+`"across": true`; each package version lists sources with `lockfile`, `version`,
+`roots` and `direct_deps`. See [the full schema](docs/SPEC.md#153-across-json-schema).
 
 ## Limitations
 

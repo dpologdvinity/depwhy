@@ -630,3 +630,61 @@ Files: `internal/lockfile/load.go`, `testdata/golden/*`, `README.md`
 - Add golden tests for yarn, bun, poetry, and go.mod.
 - Update docs and release prep.
 Commit: `feat(cli): wire v0.4 lockfile formats and add golden tests`
+
+---
+
+# v0.5 plan: recursive and monorepo
+
+Behavior is defined in `docs/SPEC.md` §15. Keep graphs independent, reuse the
+existing detection priority and lead traversal, and preserve non-recursive output.
+No new dependencies. Work in the supplied checkout.
+
+## Task 34: recursive detection
+Files: `internal/lockfile/load.go`, `walk.go`, `walk_test.go`
+- [x] Test discovery order, per-directory priority, ecosystem filtering, standard
+  skipped directories, nested gitignore rules (including negation and `**`),
+  symlinks, empty trees and filesystem errors; observe failures first.
+- [x] Share directory selection with `Detect`; return paths relative to the walk
+  root and directory-qualified warnings. Never follow directory symlinks.
+- [x] Run lockfile tests.
+Commit: `feat(lockfile): discover nested lockfiles respecting gitignore`
+
+## Task 35: across-lockfile graph query and rendering
+Files: `internal/graph/across.go`, `across_test.go`, `graph.go`,
+`internal/render/across.go`, `across_test.go`, `text.go`, `json.go`
+- [x] Test packages duplicated only across graphs, shared versions, ecosystem
+  isolation, dev filtering, workspace leads, orphans, ordering and empty results.
+- [x] Aggregate non-root nodes by ecosystem and exact package name, then version;
+  use existing leads without merging graphs or their node indexes.
+- [x] Render version sources with lockfile paths, roots and direct dependencies,
+  preserving online annotations. Support relative display paths in every mode.
+- [x] Run graph and render tests.
+Commit: `feat(graph): report duplicate versions across lockfiles`
+
+## Task 36: CLI integration and monorepo goldens
+Files: `internal/cli/cli.go`, `across.go`, `monorepo_test.go`,
+`cli_test.go`, `testdata/projects/monorepo/`, `testdata/golden/monorepo*`
+- [x] Test flag validation before implementation: `--across needs --dupes` and
+  recursive discovery cannot be combined with explicit lockfiles.
+- [x] Wire recursive discovery and across mode, preserve parser filesystem paths,
+  and scan installed sizes relative to each discovered project directory.
+- [x] Add a mixed npm/Cargo/Poetry monorepo with a second npm project, plus
+  ignored paths. Golden-test text/JSON, prod, filtering, remove, heaviest,
+  not-found, explicit paths and across combinations; repeat to prove determinism.
+- [x] Run the CLI suite and review every new golden.
+Commit: `feat(cli): support recursive and across-lockfile analysis`
+
+## Task 37: docs and release verification
+Files: `docs/SPEC.md`, `docs/PLAN.md`, `docs/ROADMAP.md`, `README.md`, `ARCHITECTURE.md`
+- [x] Document flags, traversal/ignore rules, output ordering, ecosystem isolation,
+  relative paths and the across JSON schema; mark v0.5 complete after verification.
+- [x] Review the complete diff against the requested behavior.
+- [x] Run `gofmt -l .`, `go vet ./...`, `golangci-lint run ./...`, and
+  `go test -race -covermode=atomic -coverprofile=coverage.out ./...`.
+  Confirm total statement coverage is at least 90%.
+Commit: `docs: document recursive and monorepo analysis for v0.5`
+
+Verification (2026-10-26): all checks passed; total statement coverage **94.0%**.
+Independent review findings were fixed with failing-then-passing regressions:
+Git POSIX/leading-`]` character classes, bounded `**` matching, and source
+ordering by the displayed relative path. No release tag or publication performed.

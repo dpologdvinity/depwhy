@@ -1,0 +1,19 @@
+npm · admin/package-lock.json
+shared  2 versions
+  2.0.0  via tool (prod)
+  3.0.0  via dev-tool (dev)
+
+cargo · api/Cargo.lock
+no duplicate packages
+
+npm · web/package-lock.json
+shared  2 versions
+  1.0.0  via tool (prod)
+  3.0.0  via dev-tool (dev)
+
+python · worker/poetry.lock
+no duplicate packages
+
+--- stderr
+
+--- exit=0

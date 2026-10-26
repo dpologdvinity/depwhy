@@ -36,7 +36,7 @@ Sleep 4s
 
 Type "clear"
 Enter
-Type "depwhy --online request"
+Type "depwhy --online left-pad"
 Sleep 400ms
 Enter
 Sleep 6s

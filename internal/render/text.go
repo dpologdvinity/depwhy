@@ -30,7 +30,15 @@ func pkgID(g *graph.Graph, n int) string {
 
 // source formats the "ecosystem · lockfile" suffix shown on headings.
 func source(g *graph.Graph) string {
-	return g.Ecosystem + " · " + filepath.Base(g.Lockfile)
+	return g.Ecosystem + " · " + lockfileName(g)
+}
+
+// lockfileName preserves relative labels selected by recursive/across discovery.
+func lockfileName(g *graph.Graph) string {
+	if g.LockfileLabel != "" {
+		return g.LockfileLabel
+	}
+	return filepath.Base(g.Lockfile)
 }
 
 // plural formats a count with its noun, adding an "s" unless n is 1.
@@ -119,6 +127,9 @@ func treeLabel(g *graph.Graph, k *graph.TreeNode, s Style) string {
 func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style) {
 	t := pkgID(g, r.Target)
 	if r.NotDirect {
+		if g.LockfileLabel != "" {
+			fmt.Fprintln(w, s.Bold(source(g)))
+		}
 		if len(r.RequiredBy) == 0 {
 			fmt.Fprintf(w, "%s is not a direct dependency.\n", t)
 			fmt.Fprintf(w, "run `depwhy %s` for details.\n", g.Nodes[r.Target].Name)

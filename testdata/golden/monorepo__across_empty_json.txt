@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "mode": "dupes",
+  "across": true,
+  "query": null,
+  "results": [],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

@@ -58,6 +58,7 @@ notes:
 // SPEC §3.1; query is the positional package argument (empty for --dupes).
 type options struct {
 	remove, dupes, prod, all, json, noColor bool
+	recursive, across                       bool     // v0.5: monorepo discovery and duplicates
 	online, refresh                         bool     // v0.2: network lookups (SPEC §12)
 	heaviest                                int      // v0.3: heaviest mode limit (SPEC §13)
 	venv                                    string   // v0.3: custom python virtualenv path
@@ -78,6 +79,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&o.remove, "remove", false, "removal-impact mode; the argument is a direct dependency")
 	fs.BoolVar(&o.dupes, "dupes", false, "list packages installed at more than one version")
+	fs.BoolVarP(&o.recursive, "recursive", "r", false, "find lockfiles recursively, respecting .gitignore")
+	fs.BoolVar(&o.across, "across", false, "with --dupes, find conflicting versions across lockfiles")
 	fs.StringVarP(&o.dir, "dir", "C", ".", "directory to look for lockfiles in")
 	fs.StringArrayVarP(&o.lockfiles, "lockfile", "l", nil, "use this lockfile instead of auto-detection (repeatable)")
 	fs.StringVarP(&o.ecosystem, "ecosystem", "e", "", "restrict to npm, python, cargo, or go")
@@ -118,6 +121,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // returns a usage message, or "" when the invocation is valid, and stores the
 // package argument in o.query.
 func validate(o *options, pos []string) string {
+	if o.across && !o.dupes {
+		return "--across needs --dupes"
+	}
+	if o.recursive && len(o.lockfiles) > 0 {
+		return "--recursive cannot be combined with --lockfile"
+	}
 	modeCount := 0
 	if o.remove {
 		modeCount++
@@ -201,7 +210,12 @@ func execute(o *options, stdout, stderr io.Writer) int {
 	} else {
 		var ws []string
 		var err error
-		if found, ws, err = lockfile.Detect(o.dir, o.ecosystem); err != nil {
+		if o.recursive {
+			found, ws, err = lockfile.DetectRecursive(o.dir, o.ecosystem)
+		} else {
+			found, ws, err = lockfile.Detect(o.dir, o.ecosystem)
+		}
+		if err != nil {
 			return fail("%v", err)
 		}
 		for _, w := range ws {
@@ -213,12 +227,34 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		found[i].CargoMetadata = o.cargoMetadata
 	}
 	for _, f := range found {
+		label := filepath.Base(f.Path)
+		if o.recursive {
+			label = f.Path
+			f.Path = filepath.Join(o.dir, filepath.FromSlash(f.Path))
+		} else if o.across {
+			base, err := filepath.Abs(o.dir)
+			if err != nil {
+				return fail("%v", err)
+			}
+			p, err := filepath.Abs(f.Path)
+			if err != nil {
+				return fail("%v", err)
+			}
+			rel, err := filepath.Rel(base, p)
+			if err != nil {
+				return fail("%v", err)
+			}
+			f.Path, label = p, filepath.ToSlash(rel)
+		}
 		g, ws, err := lockfile.Load(f)
 		if err != nil {
 			return fail("%v", err)
 		}
+		if o.recursive || o.across {
+			g.LockfileLabel = label
+		}
 		for _, w := range ws {
-			s.warn(filepath.Base(f.Path) + ": " + w)
+			s.warn(label + ": " + w)
 		}
 		s.graphs = append(s.graphs, g)
 	}
@@ -227,6 +263,9 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		s.style.Color = render.Enabled(f, o.noColor)
 	}
 	if o.dupes {
+		if o.across {
+			return s.across()
+		}
 		return s.dupes()
 	}
 	if o.heaviest > 0 {
@@ -270,6 +309,9 @@ func (s *session) dupes() int {
 func (s *session) sizeOf(g *graph.Graph) func(int) (int64, bool) {
 	scanner := size.NewScanner()
 	projectDir := s.o.dir
+	if s.o.recursive {
+		projectDir = filepath.Dir(g.Lockfile)
+	}
 
 	switch g.Ecosystem {
 	case "npm":
@@ -412,7 +454,11 @@ func (s *session) query() int {
 func (s *session) notFound(doc *render.Doc, name string, devOnly bool) int {
 	var files []string
 	for _, g := range s.graphs {
-		files = append(files, filepath.Base(g.Lockfile))
+		file := g.LockfileLabel
+		if file == "" {
+			file = filepath.Base(g.Lockfile)
+		}
+		files = append(files, file)
 	}
 	msg := fmt.Sprintf("%s not found in %s", s.o.query, strings.Join(files, ", "))
 	if devOnly {

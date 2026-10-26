@@ -41,6 +41,15 @@ var supported = []struct{ File, Ecosystem, Format string }{
 // file and returns a warning. It returns an error when nothing is found.
 // Detect only checks that files exist; it does not parse them.
 func Detect(dir, ecosystem string) ([]Found, []string, error) {
+	found, warns := detect(dir, ecosystem, nil)
+	if len(found) == 0 {
+		return nil, nil, fmt.Errorf("no supported lockfile in %s (looked for pnpm-lock.yaml, yarn.lock, bun.lock, package-lock.json, uv.lock, poetry.lock, Cargo.lock, go.mod)", dir)
+	}
+	return found, warns, nil
+}
+
+// detect selects a directory's lockfiles, optionally excluding ignored files.
+func detect(dir, ecosystem string, ignored func(string) bool) ([]Found, []string) {
 	var found []Found
 	var warns []string
 	chosen := map[string]string{}
@@ -49,6 +58,9 @@ func Detect(dir, ecosystem string) ([]Found, []string, error) {
 			continue
 		}
 		p := filepath.Join(dir, s.File)
+		if ignored != nil && ignored(s.File) {
+			continue
+		}
 		if st, err := os.Stat(p); err != nil || st.IsDir() {
 			continue
 		}
@@ -59,10 +71,7 @@ func Detect(dir, ecosystem string) ([]Found, []string, error) {
 		chosen[s.Ecosystem] = s.File
 		found = append(found, Found{Path: p, Ecosystem: s.Ecosystem, Format: s.Format})
 	}
-	if len(found) == 0 {
-		return nil, nil, fmt.Errorf("no supported lockfile in %s (looked for pnpm-lock.yaml, yarn.lock, bun.lock, package-lock.json, uv.lock, poetry.lock, Cargo.lock, go.mod)", dir)
-	}
-	return found, warns, nil
+	return found, warns
 }
 
 // FromPaths classifies explicit lockfile paths by base name and returns them in
