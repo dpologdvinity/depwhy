@@ -114,6 +114,14 @@ func Load(f Found) (*graph.Graph, []string, error) {
 	case "uv":
 		return ParseUV(f.Path, data)
 	case "cargo":
+		if f.CargoMetadata {
+			g, ws, err := parseCargoWithCLI(f.Path)
+			if err == nil {
+				return g, ws, nil
+			}
+			g2, ws2, err2 := ParseCargo(f.Path, data)
+			return g2, append(ws, ws2...), err2
+		}
 		return ParseCargo(f.Path, data)
 	case "gomod":
 		return ParseGoMod(f.Path, data, f.GoGraph)

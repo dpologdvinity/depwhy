@@ -1,7 +1,10 @@
 package lockfile
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -73,4 +76,103 @@ func ParseCargo(path string, data []byte) (*graph.Graph, []string, error) {
 		}
 	}
 	return finish(b, warns)
+}
+
+type cargoMetadata struct {
+	Packages         []cargoMetaPackage `json:"packages"`
+	WorkspaceMembers []string           `json:"workspace_members"`
+	Resolve          *cargoResolve      `json:"resolve"`
+}
+
+type cargoMetaPackage struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Source  string `json:"source"`
+}
+
+type cargoResolve struct {
+	Nodes []cargoResolveNode `json:"nodes"`
+}
+
+type cargoResolveNode struct {
+	ID   string            `json:"id"`
+	Deps []cargoResolveDep `json:"deps"`
+}
+
+type cargoResolveDep struct {
+	Name     string             `json:"name"`
+	Pkg      string             `json:"pkg"`
+	DepKinds []cargoMetaDepKind `json:"dep_kinds"`
+}
+
+type cargoMetaDepKind struct {
+	Kind *string `json:"kind"`
+}
+
+// ParseCargoMetadata parses the JSON output of `cargo metadata --format-version 1` (SPEC §14.2.5).
+func ParseCargoMetadata(path string, data []byte) (*graph.Graph, []string, error) {
+	var meta cargoMetadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	isMember := map[string]bool{}
+	for _, id := range meta.WorkspaceMembers {
+		isMember[id] = true
+	}
+
+	b := graph.NewBuilder("cargo", path)
+	nodeMap := map[string]int{}
+
+	for _, p := range meta.Packages {
+		var idx int
+		if isMember[p.ID] {
+			idx = b.Root(p.Name, p.Version)
+		} else {
+			idx = b.Node(p.Name, p.Version)
+		}
+		nodeMap[p.ID] = idx
+		nodeMap[p.Name+"@"+p.Version] = idx
+	}
+
+	var warns []string
+	if meta.Resolve != nil {
+		for _, node := range meta.Resolve.Nodes {
+			fromIdx, ok := nodeMap[node.ID]
+			if !ok {
+				continue
+			}
+			for _, dep := range node.Deps {
+				toIdx, ok := nodeMap[dep.Pkg]
+				if !ok {
+					continue
+				}
+				kind := graph.Dev
+				if len(dep.DepKinds) == 0 {
+					kind = graph.Prod
+				} else {
+					for _, dk := range dep.DepKinds {
+						if dk.Kind == nil || *dk.Kind != "dev" {
+							kind = graph.Prod
+							break
+						}
+					}
+				}
+				b.Edge(fromIdx, toIdx, kind)
+			}
+		}
+	}
+
+	return finish(b, warns)
+}
+
+func parseCargoWithCLI(lockPath string) (*graph.Graph, []string, error) {
+	manifestPath := filepath.Join(filepath.Dir(lockPath), "Cargo.toml")
+	cmd := exec.Command("cargo", "metadata", "--format-version", "1", "--manifest-path", manifestPath)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, []string{fmt.Sprintf("cargo metadata failed: %v; falling back to Cargo.lock", err)}, err
+	}
+	return ParseCargoMetadata(lockPath, out)
 }

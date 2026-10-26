@@ -120,3 +120,93 @@ func TestParseCargoUnknownVersionWarns(t *testing.T) {
 		t.Fatalf("err=%v warns=%v", err, warns)
 	}
 }
+
+func TestParseCargoMetadata(t *testing.T) {
+	data := []byte(`{
+  "packages": [
+    {
+      "name": "my-app",
+      "version": "0.1.0",
+      "id": "my-app 0.1.0 (path+file:///my-app)",
+      "source": null
+    },
+    {
+      "name": "serde",
+      "version": "1.0.197",
+      "id": "serde 1.0.197 (registry+https://github.com/rust-lang/crates.io-index)",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    },
+    {
+      "name": "criterion",
+      "version": "0.5.1",
+      "id": "criterion 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+      "source": "registry+https://github.com/rust-lang/crates.io-index"
+    }
+  ],
+  "workspace_members": [
+    "my-app 0.1.0 (path+file:///my-app)"
+  ],
+  "resolve": {
+    "nodes": [
+      {
+        "id": "my-app 0.1.0 (path+file:///my-app)",
+        "deps": [
+          {
+            "name": "serde",
+            "pkg": "serde 1.0.197 (registry+https://github.com/rust-lang/crates.io-index)",
+            "dep_kinds": [
+              {
+                "kind": null
+              }
+            ]
+          },
+          {
+            "name": "criterion",
+            "pkg": "criterion 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+            "dep_kinds": [
+              {
+                "kind": "dev"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "serde 1.0.197 (registry+https://github.com/rust-lang/crates.io-index)",
+        "deps": []
+      },
+      {
+        "id": "criterion 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+        "deps": []
+      }
+    ]
+  }
+}`)
+
+	g, warns, err := ParseCargoMetadata("Cargo.lock", data)
+	if err != nil {
+		t.Fatalf("ParseCargoMetadata: %v", err)
+	}
+	if len(warns) > 0 {
+		t.Fatalf("unexpected warnings: %v", warns)
+	}
+	if g.Ecosystem != "cargo" {
+		t.Errorf("ecosystem = %s, want cargo", g.Ecosystem)
+	}
+	if len(g.Roots) != 1 || g.Nodes[g.Roots[0]].Name != "my-app" {
+		t.Fatalf("roots = %v, want [my-app]", g.Roots)
+	}
+
+	root := g.Roots[0]
+	outKinds := map[string]string{}
+	for _, e := range g.Out[root] {
+		outKinds[g.Nodes[e.To].Name] = e.Kind.String()
+	}
+
+	if outKinds["serde"] != "prod" {
+		t.Errorf("serde kind = %s, want prod", outKinds["serde"])
+	}
+	if outKinds["criterion"] != "dev" {
+		t.Errorf("criterion kind = %s, want dev", outKinds["criterion"])
+	}
+}
