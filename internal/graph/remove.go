@@ -18,6 +18,7 @@ type RemoveResult struct {
 	StillVia    int    // when StillNeeded: the package that keeps it
 	Kind        Kind   // kind of the root→target edge
 	Root        int    // the root that requires Target
+	FreedSize   *int64 // total bytes freed if size provider is available
 }
 
 // Remove analyzes dropping the root→t edges (SPEC §6.2). With prod, root Dev
@@ -79,6 +80,23 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 		res.Kept = append(res.Kept, Kept{Node: n, Via: first(n)})
 	}
 	return res
+}
+
+// ComputeFreedSize calculates total freed size if sizeOf provides sizes for all freed nodes.
+func (r *RemoveResult) ComputeFreedSize(sizeOf func(int) (int64, bool)) bool {
+	if sizeOf == nil {
+		return false
+	}
+	var total int64
+	for _, n := range r.Freed {
+		sz, ok := sizeOf(n)
+		if !ok {
+			return false
+		}
+		total += sz
+	}
+	r.FreedSize = &total
+	return true
 }
 
 // sortNodes orders node indexes by name, then version.
