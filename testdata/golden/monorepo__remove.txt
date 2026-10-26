@@ -1,0 +1,13 @@
+removing tool@1.0.0 (direct, prod) from admin  npm · admin/package-lock.json
+would remove 2 packages:
+  shared@2.0.0
+  tool@1.0.0
+
+removing tool@1.0.0 (direct, prod) from web  npm · web/package-lock.json
+would remove 2 packages:
+  shared@1.0.0
+  tool@1.0.0
+
+--- stderr
+
+--- exit=0

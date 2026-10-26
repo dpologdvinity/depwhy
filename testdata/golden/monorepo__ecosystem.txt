@@ -1,0 +1,7 @@
+shared@9.0.0  cargo · api/Cargo.lock
+└── api (root, prod)
+direct dependency of api (prod)
+
+--- stderr
+
+--- exit=0

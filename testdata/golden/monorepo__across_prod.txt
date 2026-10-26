@@ -1,0 +1,10 @@
+only-across  2 versions across 2 lockfiles
+  1.0.0  in web/package-lock.json via only-across (prod)
+  2.0.0  in admin/package-lock.json via only-across (prod)
+shared  2 versions across 2 lockfiles
+  1.0.0  in web/package-lock.json via tool (prod)
+  2.0.0  in admin/package-lock.json via tool (prod)
+
+--- stderr
+
+--- exit=0

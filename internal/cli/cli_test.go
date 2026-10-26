@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -89,19 +90,26 @@ func stageFixtures(t *testing.T, srcs ...string) string {
 	t.Helper()
 	dst := t.TempDir()
 	for _, src := range srcs {
-		entries, err := os.ReadDir(src)
+		err := filepath.WalkDir(src, func(path string, e fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			rel, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			target := filepath.Join(dst, strings.TrimSuffix(rel, ".fixture"))
+			if e.IsDir() {
+				return os.MkdirAll(target, 0o755)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(target, data, 0o644)
+		})
 		if err != nil {
 			t.Fatal(err)
-		}
-		for _, e := range entries {
-			data, err := os.ReadFile(filepath.Join(src, e.Name()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			name := strings.TrimSuffix(e.Name(), ".fixture")
-			if err := os.WriteFile(filepath.Join(dst, name), data, 0o644); err != nil {
-				t.Fatal(err)
-			}
 		}
 	}
 	return dst

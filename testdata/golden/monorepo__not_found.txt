@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "mode": "why",
+  "query": {
+    "name": "missing",
+    "version": null
+  },
+  "results": [],
+  "suggestions": [],
+  "warnings": []
+}
+
+--- stderr
+depwhy: missing not found in admin/package-lock.json, api/Cargo.lock, web/package-lock.json, worker/poetry.lock
+
+--- exit=1

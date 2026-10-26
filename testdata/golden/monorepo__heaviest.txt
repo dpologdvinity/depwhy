@@ -1,0 +1,15 @@
+npm · admin/package-lock.json
+no direct dependencies found with size data
+
+cargo · api/Cargo.lock
+no direct dependencies found with size data
+
+npm · web/package-lock.json
+no direct dependencies found with size data
+
+python · worker/poetry.lock
+no direct dependencies found with size data
+
+--- stderr
+
+--- exit=0

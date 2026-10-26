@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "mode": "dupes",
+  "query": null,
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "admin/package-lock.json",
+      "dupes": [
+        {
+          "name": "shared",
+          "versions": [
+            {
+              "version": "2.0.0",
+              "leads": [
+                {
+                  "root": "admin",
+                  "name": "tool",
+                  "version": "1.0.0",
+                  "kind": "prod"
+                }
+              ]
+            },
+            {
+              "version": "3.0.0",
+              "leads": [
+                {
+                  "root": "admin",
+                  "name": "dev-tool",
+                  "version": "1.0.0",
+                  "kind": "dev"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "lockfile": "api/Cargo.lock",
+      "dupes": []
+    },
+    {
+      "ecosystem": "npm",
+      "lockfile": "web/package-lock.json",
+      "dupes": [
+        {
+          "name": "shared",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "leads": [
+                {
+                  "root": "web",
+                  "name": "tool",
+                  "version": "1.0.0",
+                  "kind": "prod"
+                }
+              ]
+            },
+            {
+              "version": "3.0.0",
+              "leads": [
+                {
+                  "root": "web",
+                  "name": "dev-tool",
+                  "version": "1.0.0",
+                  "kind": "dev"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ecosystem": "python",
+      "lockfile": "worker/poetry.lock",
+      "dupes": []
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

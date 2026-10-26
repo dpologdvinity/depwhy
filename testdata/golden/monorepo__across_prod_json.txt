@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "mode": "dupes",
+  "across": true,
+  "query": null,
+  "results": [
+    {
+      "ecosystem": "npm",
+      "name": "only-across",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "sources": [
+            {
+              "lockfile": "web/package-lock.json",
+              "version": "1.0.0",
+              "roots": [
+                "web"
+              ],
+              "direct_deps": [
+                {
+                  "root": "web",
+                  "name": "only-across",
+                  "version": "1.0.0",
+                  "kind": "prod"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "version": "2.0.0",
+          "sources": [
+            {
+              "lockfile": "admin/package-lock.json",
+              "version": "2.0.0",
+              "roots": [
+                "admin"
+              ],
+              "direct_deps": [
+                {
+                  "root": "admin",
+                  "name": "only-across",
+                  "version": "2.0.0",
+                  "kind": "prod"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ecosystem": "npm",
+      "name": "shared",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "sources": [
+            {
+              "lockfile": "web/package-lock.json",
+              "version": "1.0.0",
+              "roots": [
+                "web"
+              ],
+              "direct_deps": [
+                {
+                  "root": "web",
+                  "name": "tool",
+                  "version": "1.0.0",
+                  "kind": "prod"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "version": "2.0.0",
+          "sources": [
+            {
+              "lockfile": "admin/package-lock.json",
+              "version": "2.0.0",
+              "roots": [
+                "admin"
+              ],
+              "direct_deps": [
+                {
+                  "root": "admin",
+                  "name": "tool",
+                  "version": "1.0.0",
+                  "kind": "prod"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

@@ -1,0 +1,6 @@
+[tool.poetry]
+name = "worker"
+version = "0.1.0"
+
+[tool.poetry.dependencies]
+shared = "8.0.0"
