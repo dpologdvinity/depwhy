@@ -14,6 +14,7 @@ lockfiles (offline unless you pass `--online`):
 | `depwhy <pkg>` | Why is this package installed? |
 | `depwhy --remove <pkg>` | What would removing this direct dependency free? |
 | `depwhy --dupes` | Which packages are installed at more than one version? |
+| `depwhy -r --dupes --across` | Which packages have conflicting versions across projects? |
 | `depwhy --heaviest [N]` | Which direct dependencies free the most disk space? |
 
 The central idea is that every supported lockfile is turned into the same small
@@ -113,6 +114,15 @@ explicit `--lockfile` paths by base name. `Load` reads a file and dispatches to 
 parser by format. Files are loaded in a fixed order (pnpm, yarn, bun, npm, uv, poetry, cargo, gomod), which
 is also the output order.
 
+`DetectRecursive` (`walk.go`) reuses the same per-directory selection logic while
+visiting directories in lexical depth-first order. It prunes dependency/build
+directories and applies inherited, directory-scoped `.gitignore` rules, including
+negations and `**`. Directory symlinks are not followed. It returns paths relative
+to the scan root; the CLI joins those paths before loading to preserve adjacent
+manifest reads. `Graph.Lockfile` keeps the filesystem path, while the optional
+`LockfileLabel` carries a relative display path for every renderer. Recursive size
+scans use the lockfile's directory. Existing non-recursive output is unchanged.
+
 Each parser is `ParseX(path string, data []byte) (*graph.Graph, []string, error)`.
 The strings are warnings. They never fail a run.
 
@@ -199,6 +209,15 @@ Group non-root nodes by name, keep groups with two or more versions, and attach
 the leads for each version. Groups sort by version count (descending) then name.
 Versions sort as plain strings, which is what the spec asks for.
 
+`DupesAcross` (`across.go`) groups all non-root nodes across graphs by ecosystem,
+exact name and version, honoring `--prod`. Each version keeps one source per
+lockfile with its graph, node index and existing lead traversal; graphs and node
+indexes are never merged. Equal versions are shared sources, and different
+ecosystems remain separate. Results sort by version count, name and ecosystem,
+then by version and source path. Repeated cleaned lockfile paths count once.
+The CLI handles `--across` only with `--dupes`, and passes the shown source nodes
+through the same opt-in health lookup used by local dupes.
+
 ### Matching and suggestions
 
 User queries are normalized per ecosystem only for matching: PEP 503 for Python,
@@ -278,6 +297,19 @@ document on stdout, and the error message still goes to stderr.
 
 When several lockfiles are present they are all loaded and a query is run against
 each; results are printed in lockfile order.
+
+`-r/--recursive` replaces directory detection and cannot be combined with explicit
+lockfiles. `--dupes --across` accepts either discovery mode or repeated `-l` flags:
+
+```sh
+depwhy -C repo -r shared
+depwhy -C repo -r --dupes --across --json
+depwhy --dupes --across -l web/package-lock.json -l admin/package-lock.json
+```
+
+Across JSON adds a top-level `across: true` and one result per package, with
+per-version source arrays containing relative lockfile paths, roots and direct
+dependency leads. Non-across JSON keeps its existing structure. See SPEC §15.
 
 The reported version comes from `-ldflags` in release builds, then from the module
 version embedded by `go install pkg@version`, then falls back to `dev`.

@@ -660,3 +660,154 @@ Updated lockfile detection priority per directory:
 - Dedicated parsers in `internal/lockfile` with edge-case tests for each new format.
 - Golden tests for yarn, bun, poetry, and go.mod fixtures.
 - Detection and CLI help documentation updated.
+
+## 15. Recursive and Monorepo (v0.5)
+
+### 15.1 Recursive discovery
+
+`-r` / `--recursive` is a boolean, default false. It searches `--dir` (default
+`.`) and its descendants. It works with why, `--remove`, `--dupes`, `--heaviest`
+and their existing modifiers. Combining it with any explicit `-l/--lockfile`
+is a usage error: `--recursive cannot be combined with --lockfile`.
+
+`lockfile.DetectRecursive(dir, ecosystem string) ([]Found, []string, error)`
+returns paths relative to `dir`, using forward slashes. The CLI joins these
+paths to `dir` before loading, so parsers still find adjacent manifests and
+optional tool integrations run in the correct project. Installed npm/Python
+sizes are measured relative to each discovered lockfile's directory;
+an explicit `--venv` keeps its existing meaning.
+
+Walk rules:
+
+- Visit the starting directory first, then child directories in lexical,
+  depth-first order. In each directory use §14.3's ecosystem priority:
+  `pnpm-lock.yaml` > `yarn.lock` > `bun.lock` > `package-lock.json`;
+  `uv.lock` > `poetry.lock`; `Cargo.lock`; `go.mod`.
+- Select at most one file per ecosystem **per directory**. `--ecosystem`
+  filters every directory. Ignored lockfiles are excluded before priority is
+  applied. Priority warnings in descendants are prefixed with the directory's
+  relative path. A directory need not contain a lockfile to be traversed.
+- Always prune `.git`, `node_modules`, `.venv`, `venv`, `target`, `dist`,
+  `build`, `vendor`, `__pycache__`, and `.tox` below the starting directory.
+  Ignore negations cannot reopen these directories.
+- Read `.gitignore` in each visited directory. Rules are relative to the file's
+  directory, inherited by descendants, and applied in order (last match wins).
+  Support comments and blank lines, `!` negation, escaped leading `#`/`!`,
+  escaped spaces, directory-only trailing `/`, anchored paths, shell globs
+  (`*`, `?`, character classes) and `**` path segments. Patterns with no slash
+  match a basename at any depth; a leading or middle slash anchors a pattern
+  to its `.gitignore` directory. Nested files can override ancestor rules.
+  As in Git, a pruned directory cannot be reopened by negating a file inside it.
+- Only `.gitignore` files at or below `--dir` apply: no parent-repository,
+  global Git excludes, `.git/info/exclude` or Git index inspection. Ignore rules
+  also apply to tracked files, since discovery reads the filesystem only.
+- Do not follow directory symlinks. Explicitly selected roots and lockfile
+  symlinks retain normal filesystem behavior. Traversal and `.gitignore` read
+  errors are fatal (exit 2); missing `.gitignore` files are normal.
+- If no supported file survives filtering, exit 2 with
+  `no supported lockfile in <dir> or its subdirectories`.
+
+Every graph remains independent. Text results are grouped in discovery order
+and their headings identify the relative lockfile path, including removal
+messages for non-direct packages. JSON result `lockfile` fields contain that
+same path. Parser warnings and not-found messages also identify relative paths.
+Without `-r` or `--across`, existing detection and output stay unchanged.
+
+### 15.2 Cross-lockfile duplicates
+
+`--across` is a boolean, default false, valid only with `--dupes`. Otherwise
+exit 2 with `--across needs --dupes`. It accepts recursive discovery, normal
+directory detection or repeated explicit `-l` flags. It does not imply `-r`.
+Explicit paths retain their existing resolution relative to the working
+directory; displayed source paths are relative to `--dir` (including `../`
+for files outside it). Repeated spellings of the same cleaned absolute path
+count once.
+
+Aggregate **all non-root nodes**, not just each graph's local duplicates.
+Group by ecosystem and exact lockfile package name, matching §6.3. Keep packages
+with more than one distinct version across the loaded set, including conflicts
+already present within a single lockfile. Equal names from different ecosystems
+are unrelated; equal versions in different lockfiles are sources of one version.
+With `--prod`, filter dev-only nodes and dev leads exactly as for local dupes.
+Orphans remain eligible and have no roots or direct dependencies.
+
+Sort packages by distinct version count descending, then name, then ecosystem.
+Sort versions by plain string comparison; sources by lockfile path. Each source
+uses its own graph's existing lead traversal, preserving workspace roots and edge
+kinds. Count only lockfiles containing that package. Text format:
+
+```text
+shared  2 versions across 2 lockfiles
+  1.0.0  in web/package-lock.json via tool (prod)
+  2.0.0  in admin/package-lock.json via tool (prod)
+```
+
+Multiple leads are comma-separated; a source with none prints
+`via (no direct dependency)`. No matches prints
+`no duplicate packages across lockfiles`. Exit 0 even with no duplicates.
+`--online`/`--refresh` annotate only the versions shown, using the existing
+lookup and warning behavior; text annotations appear beside each source version.
+
+### 15.3 Across JSON schema
+
+Keep `schema: 1`, `mode: "dupes"`, `query: null`, and the existing `warnings`
+array. Add top-level `"across": true` **only** for across mode. `results` holds
+one object per duplicated package:
+
+```json
+{
+  "schema": 1,
+  "mode": "dupes",
+  "across": true,
+  "query": null,
+  "results": [
+    {
+      "ecosystem": "npm",
+      "name": "shared",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "sources": [
+            {
+              "lockfile": "web/package-lock.json",
+              "version": "1.0.0",
+              "roots": ["web"],
+              "direct_deps": [
+                {"root": "web", "name": "tool", "version": "1.0.0", "kind": "prod"}
+              ]
+            }
+          ]
+        },
+        {
+          "version": "2.0.0",
+          "sources": [
+            {
+              "lockfile": "admin/package-lock.json",
+              "version": "2.0.0",
+              "roots": ["admin"],
+              "direct_deps": [
+                {"root": "admin", "name": "tool", "version": "1.0.0", "kind": "prod"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+```
+
+`roots` is the sorted unique list of workspace/project labels from that source's
+leads. `direct_deps` uses the existing lead schema and ordering, including the
+root for each direct dependency. Empty collections encode as `[]`, never `null`.
+With `--online`, each source also carries the existing `advisories`, `deprecated`
+and `yanked` fields. A clean empty run has `"results": []`.
+
+### 15.4 Definition of done
+
+- Recursive walker, ignore semantics and all four analysis modes have tests.
+- Cross-file-only conflicts, ecosystems, workspaces, prod and empty cases tested.
+- Mixed monorepo fixture and deterministic text/JSON golden tests.
+- Documentation and CLI help cover the new flags.
+- Formatting, vet, lint and race tests pass; total statement coverage ≥ 90%.

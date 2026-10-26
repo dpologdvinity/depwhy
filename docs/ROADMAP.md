@@ -38,7 +38,8 @@ In priority order, each with fixtures and goldens:
 4. Go: `go.mod` + `go mod graph` (needs the go toolchain, so warn if it's missing). `go.sum` has no graph.
 5. Cargo accuracy: when `cargo` is on PATH and `--cargo-metadata` is set, use `cargo metadata --format-version 1` to get real dev and build kinds and the actual workspace members.
 
-## v0.5 — Recursive and monorepo
+## v0.5 — Recursive and monorepo — done
+Spec: `docs/SPEC.md` §15. Plan: `docs/PLAN.md` (Tasks 34–37).
 - `-r/--recursive`: find lockfiles in subdirectories, respecting `.gitignore` and skipping `node_modules`, `.venv`, and `target`.
 - Group output by lockfile path.
 - `depwhy --dupes --across`: the same package at different versions across lockfiles in one repo.
