@@ -56,12 +56,13 @@ type Edge struct {
 // Invariants kept by Builder: node IDs are unique, In mirrors Out exactly,
 // there are no duplicate (From, To, Kind) edges, and Roots is not empty.
 type Graph struct {
-	Ecosystem string   // "npm" | "python" | "cargo"
-	Lockfile  string   // lockfile path as given or detected
-	Nodes     []Node   // all nodes; an index into this slice identifies a node
-	Out       [][]Edge // Out[i] lists the edges leaving node i
-	In        [][]Edge // In[i] lists the edges entering node i
-	Roots     []int    // indexes of root nodes, in lockfile order
+	Ecosystem     string   // "npm" | "python" | "cargo"
+	Lockfile      string   // lockfile path as given or detected
+	LockfileLabel string   // optional display path relative to the scan directory
+	Nodes         []Node   // all nodes; an index into this slice identifies a node
+	Out           [][]Edge // Out[i] lists the edges leaving node i
+	In            [][]Edge // In[i] lists the edges entering node i
+	Roots         []int    // indexes of root nodes, in lockfile order
 
 	devOnce     sync.Once
 	devOnly     []bool // cache for DevOnly

@@ -3,7 +3,6 @@ package render
 import (
 	"encoding/json"
 	"io"
-	"path/filepath"
 
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
@@ -31,6 +30,7 @@ func (q Query) MarshalJSON() ([]byte, error) {
 type Doc struct {
 	Schema      int       `json:"schema"`
 	Mode        string    `json:"mode"`
+	Across      bool      `json:"across,omitempty"`
 	Query       *Query    `json:"query"`
 	Results     []any     `json:"results"`
 	Suggestions *[]string `json:"suggestions,omitempty"`
@@ -215,7 +215,7 @@ func WhyJSONWithSizes(g *graph.Graph, r graph.WhyResult, notes Notes, sizes map[
 		}
 		paths = append(paths, steps)
 	}
-	return whyJSON{g.Ecosystem, filepath.Base(g.Lockfile), pkgWith(g, r.Target, notes, sizes), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
+	return whyJSON{g.Ecosystem, lockfileName(g), pkgWith(g, r.Target, notes, sizes), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
 }
 
 // RemoveJSON builds one remove result entry.
@@ -226,7 +226,7 @@ func RemoveJSON(g *graph.Graph, r graph.RemoveResult, notes Notes) any {
 // RemoveJSONWithSizes builds one remove result entry with optional size information.
 func RemoveJSONWithSizes(g *graph.Graph, r graph.RemoveResult, notes Notes, sizes map[int]int64) any {
 	out := removeJSON{
-		Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Package: pkgWith(g, r.Target, notes, sizes),
+		Ecosystem: g.Ecosystem, Lockfile: lockfileName(g), Package: pkgWith(g, r.Target, notes, sizes),
 		Direct: !r.NotDirect, StillNeeded: r.StillNeeded, FreedSizeBytes: r.FreedSize,
 		Freed: []pkgJSON{}, Kept: []keptJSON{}, RequiredBy: leadsJSON(g, r.RequiredBy),
 	}
@@ -253,7 +253,7 @@ func RemoveJSONWithSizes(g *graph.Graph, r graph.RemoveResult, notes Notes, size
 
 // DupesJSON builds one dupes result entry.
 func DupesJSON(g *graph.Graph, ds []graph.Dupe, notes Notes) any {
-	out := dupesJSON{Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Dupes: []dupeJSON{}}
+	out := dupesJSON{Ecosystem: g.Ecosystem, Lockfile: lockfileName(g), Dupes: []dupeJSON{}}
 	for _, d := range ds {
 		dj := dupeJSON{Name: d.Name, Versions: []dupeVersionJSON{}}
 		for _, v := range d.Versions {
@@ -281,7 +281,7 @@ type heaviestJSON struct {
 func HeaviestJSON(g *graph.Graph, items []graph.HeaviestItem) any {
 	out := heaviestJSON{
 		Ecosystem: g.Ecosystem,
-		Lockfile:  filepath.Base(g.Lockfile),
+		Lockfile:  lockfileName(g),
 		Heaviest:  []heaviestItemJSON{},
 	}
 	for _, it := range items {
