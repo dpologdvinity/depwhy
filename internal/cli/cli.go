@@ -61,9 +61,11 @@ type options struct {
 	online, refresh                         bool     // v0.2: network lookups (SPEC §12)
 	heaviest                                int      // v0.3: heaviest mode limit (SPEC §13)
 	venv                                    string   // v0.3: custom python virtualenv path
+	goGraph                                 bool     // v0.4: refine go mod graph (SPEC §14)
+	cargoMetadata                           bool     // v0.4: precise cargo metadata (SPEC §14)
 	dir                                     string   // directory searched for lockfiles
 	lockfiles                               []string // explicit lockfile paths; disables detection
-	ecosystem                               string   // "", "npm", "python", or "cargo"
+	ecosystem                               string   // "", "npm", "python", "cargo", or "go"
 	depth                                   int      // max why-tree levels; 0 means unlimited
 	query                                   string   // "name" or "name@version"
 }
@@ -78,7 +80,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&o.dupes, "dupes", false, "list packages installed at more than one version")
 	fs.StringVarP(&o.dir, "dir", "C", ".", "directory to look for lockfiles in")
 	fs.StringArrayVarP(&o.lockfiles, "lockfile", "l", nil, "use this lockfile instead of auto-detection (repeatable)")
-	fs.StringVarP(&o.ecosystem, "ecosystem", "e", "", "restrict to npm, python, or cargo")
+	fs.StringVarP(&o.ecosystem, "ecosystem", "e", "", "restrict to npm, python, cargo, or go")
 	fs.BoolVar(&o.prod, "prod", false, "ignore dev dependencies")
 	fs.IntVarP(&o.depth, "depth", "d", 0, "max levels printed in the why tree (0 = unlimited)")
 	fs.BoolVar(&o.all, "all", false, "print all paths without the 10-path cap")
@@ -89,6 +91,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.IntVar(&o.heaviest, "heaviest", 0, "rank direct dependencies by exclusive transitive size freed")
 	fs.Lookup("heaviest").NoOptDefVal = "10"
 	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv in target directory)")
+	fs.BoolVar(&o.goGraph, "go-graph", false, "refine Go module transitive dependencies using go mod graph")
+	fs.BoolVar(&o.cargoMetadata, "cargo-metadata", false, "use cargo metadata for precise Cargo dependency discrimination")
 	fs.BoolVarP(&version, "version", "V", false, "print version and exit")
 	fs.BoolVarP(&help, "help", "h", false, "print usage and exit")
 
@@ -128,8 +132,8 @@ func validate(o *options, pos []string) string {
 		return "--remove, --dupes, and --heaviest cannot be combined"
 	}
 	switch {
-	case o.ecosystem != "" && o.ecosystem != "npm" && o.ecosystem != "python" && o.ecosystem != "cargo":
-		return "unknown ecosystem " + o.ecosystem + " (want npm, python, or cargo)"
+	case o.ecosystem != "" && o.ecosystem != "npm" && o.ecosystem != "python" && o.ecosystem != "cargo" && o.ecosystem != "go":
+		return "unknown ecosystem " + o.ecosystem + " (want npm, python, cargo, or go)"
 	case o.refresh && !o.online:
 		return "--refresh needs --online"
 	case o.depth < 0:
@@ -203,6 +207,10 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		for _, w := range ws {
 			s.warn(w)
 		}
+	}
+	for i := range found {
+		found[i].GoGraph = o.goGraph
+		found[i].CargoMetadata = o.cargoMetadata
 	}
 	for _, f := range found {
 		g, ws, err := lockfile.Load(f)

@@ -36,10 +36,10 @@ type pyprojectTOML struct {
 		} `toml:"poetry"`
 	} `toml:"tool"`
 	Project struct {
-		Name                 string                 `toml:"name"`
-		Version              string                 `toml:"version"`
-		Dependencies         []string               `toml:"dependencies"`
-		OptionalDependencies map[string][]string    `toml:"optional-dependencies"`
+		Name                 string              `toml:"name"`
+		Version              string              `toml:"version"`
+		Dependencies         []string            `toml:"dependencies"`
+		OptionalDependencies map[string][]string `toml:"optional-dependencies"`
 	} `toml:"project"`
 }
 

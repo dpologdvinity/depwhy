@@ -25,9 +25,11 @@ writing one parser, with no changes anywhere else.
  lockfile files           graph                 results            output
 ┌──────────────┐   ┌───────────────┐   ┌─────────────────┐   ┌───────────────┐
 │ package-lock │   │               │   │ WhyResult       │   │ text (trees)  │
-│ pnpm-lock    │──▶│  graph.Graph  │──▶│ RemoveResult    │──▶│ JSON document │
-│ uv.lock      │   │  per lockfile │   │ []Dupe          │   │               │
+│ pnpm-lock    │   │               │   │ RemoveResult    │   │ JSON document │
+│ yarn / bun   │──▶│  graph.Graph  │──▶│ []Dupe          │──▶│               │
+│ uv / poetry  │   │  per lockfile │   │ HeaviestResult  │   │               │
 │ Cargo.lock   │   │               │   │                 │   │               │
+│ go.mod       │   │               │   │                 │   │               │
 └──────────────┘   └───────────────┘   └─────────────────┘   └───────────────┘
    lockfile                graph                graph              render
       └──────────────────────────── cli wires it together ────────────────────┘
@@ -105,10 +107,10 @@ dev-only, as absent.
 
 ## Lockfile parsers (`internal/lockfile`)
 
-`Detect` looks for the four known file names in a directory (at most one per
-ecosystem; `pnpm-lock.yaml` beats `package-lock.json`). `FromPaths` classifies
+`Detect` looks for known lockfile names in a directory (at most one per
+ecosystem, prioritizing higher-priority tools per SPEC §14.3). `FromPaths` classifies
 explicit `--lockfile` paths by base name. `Load` reads a file and dispatches to a
-parser by format. Files are loaded in a fixed order (pnpm, npm, uv, cargo), which
+parser by format. Files are loaded in a fixed order (pnpm, yarn, bun, npm, uv, poetry, cargo, gomod), which
 is also the output order.
 
 Each parser is `ParseX(path string, data []byte) (*graph.Graph, []string, error)`.
@@ -116,10 +118,14 @@ The strings are warnings. They never fail a run.
 
 | Format | Roots | How edges are resolved |
 |---|---|---|
-| `package-lock.json` v2/v3 | `""` and workspace directories | Node's lookup rule over the flat `packages` map, following `link` entries |
+| `package-lock.json` v1/v2/v3 | `""` and workspace directories | Node's lookup rule over the flat `packages` map, following `link` entries |
 | `pnpm-lock.yaml` v9 | each importer | `snapshots` keys, with peer suffixes stripped; `link:`, `file:` and alias refs handled |
+| `yarn.lock` Berry / Classic | workspace entries or `package.json` | Berry YAML descriptors or Classic line-oriented blocks with descriptor map |
+| `bun.lock` v1 | `""` and workspaces | JSONC workspaces map and packages dictionary |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
-| `Cargo.lock` v3/v4 | packages with no `source` | by name, narrowed by version then source |
+| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables, categorized by `category` and dependencies |
+| `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
+| `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` |
 
 Things every parser does the same way:
 

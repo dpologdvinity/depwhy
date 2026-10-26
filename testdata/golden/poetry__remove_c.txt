@@ -1,0 +1,11 @@
+c@1.0.0 is not a direct dependency. it is required by: a (prod), b (dev)
+remove those instead, or run `depwhy c` for details.
+
+c@2.0.0 is not a direct dependency.
+run `depwhy c` for details.
+
+--- stderr
+depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
+depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+
+--- exit=0

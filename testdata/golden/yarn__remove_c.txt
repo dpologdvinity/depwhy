@@ -1,0 +1,9 @@
+c@1.0.0 is not a direct dependency. it is required by: a (prod)
+remove those instead, or run `depwhy c` for details.
+
+c@2.0.0 is not a direct dependency.
+run `depwhy c` for details.
+
+--- stderr
+
+--- exit=0

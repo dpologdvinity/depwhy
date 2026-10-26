@@ -1,0 +1,6 @@
+go · go.mod
+no duplicate packages
+
+--- stderr
+
+--- exit=0

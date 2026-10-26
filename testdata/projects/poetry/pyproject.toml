@@ -1,0 +1,11 @@
+[tool.poetry]
+name = "app"
+version = "0.1.0"
+description = "demo"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+a = "^1.0.0"
+
+[tool.poetry.dev-dependencies]
+b = "^1.0.0"

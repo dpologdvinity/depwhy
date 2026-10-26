@@ -64,12 +64,27 @@ func TestDetectPnpmWinsOverNpm(t *testing.T) {
 	}
 }
 
+func TestDetectPriorityOrder(t *testing.T) {
+	d := t.TempDir()
+	touch(t, d, "yarn.lock", "bun.lock", "package-lock.json", "poetry.lock", "uv.lock", "go.mod")
+	fs, warns, err := Detect(d, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := formats(fs); !reflect.DeepEqual(got, []string{"yarn", "uv", "gomod"}) {
+		t.Fatalf("formats = %v", got)
+	}
+	if len(warns) != 3 {
+		t.Fatalf("expected 3 warnings, got %v", warns)
+	}
+}
+
 // TestDetectNothing checks the error when no lockfile matches.
 func TestDetectNothing(t *testing.T) {
 	d := t.TempDir()
 	touch(t, d, "uv.lock")
 	_, _, err := Detect(d, "cargo")
-	want := "no supported lockfile in " + d + " (looked for pnpm-lock.yaml, package-lock.json, uv.lock, Cargo.lock)"
+	want := "no supported lockfile in " + d + " (looked for pnpm-lock.yaml, yarn.lock, bun.lock, package-lock.json, uv.lock, poetry.lock, Cargo.lock, go.mod)"
 	if err == nil || err.Error() != want {
 		t.Fatalf("err = %v", err)
 	}
@@ -78,15 +93,15 @@ func TestDetectNothing(t *testing.T) {
 // TestFromPaths checks load order, the unrecognized-name error, and the error when
 // the ecosystem filter leaves nothing.
 func TestFromPaths(t *testing.T) {
-	fs, err := FromPaths([]string{"x/Cargo.lock", "y/pnpm-lock.yaml", "z/package-lock.json"}, "")
+	fs, err := FromPaths([]string{"x/Cargo.lock", "y/pnpm-lock.yaml", "w/go.mod", "z/package-lock.json"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Explicit paths skip the one-per-ecosystem rule and load in table order.
-	if got := formats(fs); !reflect.DeepEqual(got, []string{"pnpm", "npm", "cargo"}) {
+	if got := formats(fs); !reflect.DeepEqual(got, []string{"pnpm", "npm", "cargo", "gomod"}) {
 		t.Fatalf("formats = %v", got)
 	}
-	if _, err := FromPaths([]string{"x/yarn.lock"}, ""); err == nil || err.Error() != "unrecognized lockfile name: yarn.lock" {
+	if _, err := FromPaths([]string{"x/bogus.lock"}, ""); err == nil || err.Error() != "unrecognized lockfile name: bogus.lock" {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := FromPaths([]string{"x/uv.lock"}, "npm"); err == nil {

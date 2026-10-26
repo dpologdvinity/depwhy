@@ -1,0 +1,5 @@
+
+--- stderr
+depwhy: zzz not found in bun.lock
+
+--- exit=1

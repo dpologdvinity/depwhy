@@ -1,0 +1,10 @@
+d@1.0.0  npm · bun.lock
+├── a@1.0.0
+│   └── …
+└── b@1.0.0
+    └── …
+pulled in by 2 direct dependencies: a (prod), b (dev)
+
+--- stderr
+
+--- exit=0

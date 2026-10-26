@@ -1,0 +1,9 @@
+removing a@1.0.0 (direct, prod) from app  npm · yarn.lock
+would remove 3 packages:
+  a@1.0.0
+  c@1.0.0
+  d@1.0.0
+
+--- stderr
+
+--- exit=0

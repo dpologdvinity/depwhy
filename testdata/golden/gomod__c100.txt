@@ -1,0 +1,6 @@
+
+--- stderr
+depwhy: c@1.0.0 not found in go.mod
+did you mean: c, a, b
+
+--- exit=1

@@ -1,0 +1,7 @@
+
+--- stderr
+depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
+depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+depwhy: zzz not found in poetry.lock
+
+--- exit=1

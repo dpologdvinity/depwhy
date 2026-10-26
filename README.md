@@ -9,7 +9,7 @@
 ![depwhy demo](docs/demo.gif)
 
 **Why is this package in my dependency tree?** `depwhy` reads your lockfile and
-tells you, offline by default, with one interface for npm, pnpm, Python (uv), and Cargo.
+tells you, offline by default, with one interface for npm, pnpm, Yarn, Bun, Python (uv, Poetry), Cargo, and Go.
 
 ```console
 $ depwhy d
@@ -179,22 +179,32 @@ output, so avoid `--online` on projects whose package names are confidential.
 
 | File | Versions | Ecosystem |
 |---|---|---|
-| `package-lock.json` | lockfileVersion 2 and 3 | npm |
 | `pnpm-lock.yaml` | lockfileVersion 9.x | npm |
+| `yarn.lock` | Berry (v2+) and Classic (v1) | npm |
+| `bun.lock` | Bun 1.2+ JSONC | npm |
+| `package-lock.json` | lockfileVersion 1, 2, and 3 | npm |
 | `uv.lock` | version 1 | python |
-| `Cargo.lock` | versions 3 and 4 | cargo |
+| `poetry.lock` | all versions | python |
+| `Cargo.lock` | versions 3 and 4 (plus `--cargo-metadata`) | cargo |
+| `go.mod` | all versions (plus `--go-graph`) | go |
 
-If both `pnpm-lock.yaml` and `package-lock.json` are present, the pnpm file is used and depwhy warns.
+Detection priority per directory:
+- npm: `pnpm-lock.yaml` > `yarn.lock` > `bun.lock` > `package-lock.json`
+- python: `uv.lock` > `poetry.lock`
+- cargo: `Cargo.lock`
+- go: `go.mod`
+
+If multiple lockfiles are present for an ecosystem, the higher-priority file is used and depwhy warns.
 Only the given directory is checked; there is no recursive scan.
 
 ## Limitations
 
-- **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots.
-- **Python markers**: environment markers in `uv.lock` are ignored, so every edge counts on every platform.
+- **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots. Use `--cargo-metadata` when cargo is available on PATH for precise dependency discrimination and workspace resolution.
+- **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`.
+- **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.
 - Advisory and deprecation data is only as complete as OSV and the public registries; `--online` does not read private registries.
-- Only lockfiles are read, apart from `package.json` names used to label pnpm roots. `yarn.lock`, `bun.lock`, `poetry.lock`, and `requirements.txt` are not supported yet; see the [roadmap](docs/ROADMAP.md).
 
 ## JSON output
 

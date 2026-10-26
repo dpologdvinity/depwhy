@@ -1,0 +1,37 @@
+[[package]]
+name = "a"
+version = "1.0.0"
+category = "main"
+optional = false
+
+[package.dependencies]
+c = "1.0.0"
+d = "1.0.0"
+
+[[package]]
+name = "b"
+version = "1.0.0"
+category = "dev"
+optional = false
+
+[package.dependencies]
+c = "2.0.0"
+d = "1.0.0"
+
+[[package]]
+name = "c"
+version = "1.0.0"
+category = "main"
+optional = false
+
+[[package]]
+name = "c"
+version = "2.0.0"
+category = "dev"
+optional = false
+
+[[package]]
+name = "d"
+version = "1.0.0"
+category = "main"
+optional = false

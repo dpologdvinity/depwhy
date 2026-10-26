@@ -24,22 +24,26 @@ type Found struct {
 }
 
 // supported lists the lockfile names depwhy understands. The order is both
-// the load order and the output order (SPEC §4).
+// the load order and the output order (SPEC §4, §14.3).
 var supported = []struct{ File, Ecosystem, Format string }{
 	{"pnpm-lock.yaml", "npm", "pnpm"},
+	{"yarn.lock", "npm", "yarn"},
+	{"bun.lock", "npm", "bun"},
 	{"package-lock.json", "npm", "npm"},
 	{"uv.lock", "python", "uv"},
+	{"poetry.lock", "python", "poetry"},
 	{"Cargo.lock", "cargo", "cargo"},
+	{"go.mod", "go", "gomod"},
 }
 
 // Detect looks for lockfiles in dir, at most one per ecosystem. ecosystem "" means
-// all. If a directory has both pnpm-lock.yaml and package-lock.json it keeps the
-// pnpm file and returns a warning. It returns an error when nothing is found.
+// all. If a directory has multiple lockfiles for one ecosystem, it keeps the higher-priority
+// file and returns a warning. It returns an error when nothing is found.
 // Detect only checks that files exist; it does not parse them.
 func Detect(dir, ecosystem string) ([]Found, []string, error) {
 	var found []Found
 	var warns []string
-	have := map[string]bool{}
+	chosen := map[string]string{}
 	for _, s := range supported {
 		if ecosystem != "" && s.Ecosystem != ecosystem {
 			continue
@@ -48,15 +52,15 @@ func Detect(dir, ecosystem string) ([]Found, []string, error) {
 		if st, err := os.Stat(p); err != nil || st.IsDir() {
 			continue
 		}
-		if have[s.Ecosystem] {
-			warns = append(warns, "both pnpm-lock.yaml and package-lock.json found; using pnpm-lock.yaml")
+		if prev, ok := chosen[s.Ecosystem]; ok {
+			warns = append(warns, fmt.Sprintf("both %s and %s found; using %s", prev, s.File, prev))
 			continue
 		}
-		have[s.Ecosystem] = true
+		chosen[s.Ecosystem] = s.File
 		found = append(found, Found{Path: p, Ecosystem: s.Ecosystem, Format: s.Format})
 	}
 	if len(found) == 0 {
-		return nil, nil, fmt.Errorf("no supported lockfile in %s (looked for pnpm-lock.yaml, package-lock.json, uv.lock, Cargo.lock)", dir)
+		return nil, nil, fmt.Errorf("no supported lockfile in %s (looked for pnpm-lock.yaml, yarn.lock, bun.lock, package-lock.json, uv.lock, poetry.lock, Cargo.lock, go.mod)", dir)
 	}
 	return found, warns, nil
 }

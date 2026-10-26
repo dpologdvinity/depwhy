@@ -1,0 +1,12 @@
+removing a@1.0.0 (direct, prod) from app  python · poetry.lock
+would remove 1 package:
+  a@1.0.0
+still needed by others (2):
+  c@1.0.0  via b@1.0.0
+  d@1.0.0  via b@1.0.0
+
+--- stderr
+depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
+depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+
+--- exit=0

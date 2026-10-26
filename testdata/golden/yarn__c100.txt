@@ -1,0 +1,7 @@
+c@1.0.0  npm · yarn.lock
+└── a@1.0.0
+    └── app (root, prod)
+
+--- stderr
+
+--- exit=0

@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "mode": "why",
+  "query": {
+    "name": "d",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "go",
+      "lockfile": "go.mod",
+      "package": {
+        "name": "d",
+        "version": "v1.0.0"
+      },
+      "dev_only": false,
+      "direct": true,
+      "paths": [
+        [
+          {
+            "name": "app",
+            "version": "",
+            "root": true
+          },
+          {
+            "name": "d",
+            "version": "v1.0.0",
+            "kind": "indirect"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "app",
+          "name": "d",
+          "version": "v1.0.0",
+          "kind": "indirect"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

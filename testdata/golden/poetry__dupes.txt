@@ -1,0 +1,10 @@
+python · poetry.lock
+c  2 versions
+  1.0.0  via a (prod), b (dev)
+  2.0.0  via 
+
+--- stderr
+depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
+depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+
+--- exit=0

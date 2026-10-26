@@ -1,0 +1,7 @@
+removing c@v1.0.0 (direct, prod) from app  go · go.mod
+would remove 1 package:
+  c@v1.0.0
+
+--- stderr
+
+--- exit=0

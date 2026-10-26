@@ -115,7 +115,7 @@ func TestGolden(t *testing.T) {
 		{"c"}, {"d"}, {"c@1.0.0"}, {"--remove", "a"}, {"--remove", "c"}, {"--dupes"},
 		{"--prod", "c"}, {"--json", "d"}, {"zzz"}, {"--depth", "1", "d"},
 	}
-	for _, fixture := range []string{"npm", "pnpm", "uv", "cargo"} {
+	for _, fixture := range []string{"npm", "pnpm", "yarn", "bun", "uv", "poetry", "cargo", "gomod"} {
 		src := filepath.Join("..", "..", "testdata", "projects", fixture)
 		if _, err := os.Stat(src); err != nil {
 			t.Fatalf("missing fixture %s", fixture)
@@ -198,7 +198,7 @@ func TestUnreadableExplicitLockfile(t *testing.T) {
 	if code != 2 || !strings.Contains(errs, "depwhy:") {
 		t.Fatalf("got %d %q", code, errs)
 	}
-	if code, _, errs = run("-l", "whatever/yarn.lock", "x"); code != 2 || !strings.Contains(errs, "unrecognized lockfile name: yarn.lock") {
+	if code, _, errs = run("-l", "whatever/bogus.lock", "x"); code != 2 || !strings.Contains(errs, "unrecognized lockfile name: bogus.lock") {
 		t.Fatalf("got %d %q", code, errs)
 	}
 }

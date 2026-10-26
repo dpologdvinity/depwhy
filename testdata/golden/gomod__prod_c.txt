@@ -1,0 +1,7 @@
+c@v1.0.0  go · go.mod
+└── app (root, prod)
+direct dependency of app (prod)
+
+--- stderr
+
+--- exit=0

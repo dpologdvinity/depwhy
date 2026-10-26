@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "mode": "why",
+  "query": {
+    "name": "d",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "yarn.lock",
+      "package": {
+        "name": "d",
+        "version": "1.0.0"
+      },
+      "dev_only": false,
+      "direct": false,
+      "paths": [
+        [
+          {
+            "name": "app",
+            "version": "0.0.0-use.local",
+            "root": true
+          },
+          {
+            "name": "a",
+            "version": "1.0.0",
+            "kind": "prod"
+          },
+          {
+            "name": "d",
+            "version": "1.0.0",
+            "kind": "prod"
+          }
+        ]
+      ],
+      "paths_truncated": false,
+      "leads": [
+        {
+          "root": "app",
+          "name": "a",
+          "version": "1.0.0",
+          "kind": "prod"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0

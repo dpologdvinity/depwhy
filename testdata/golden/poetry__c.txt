@@ -1,0 +1,14 @@
+c@1.0.0  python · poetry.lock
+├── a@1.0.0
+│   └── app (root, prod)
+└── b@1.0.0
+    └── app (root, dev)
+pulled in by 2 direct dependencies: a (prod), b (dev)
+
+c@2.0.0  python · poetry.lock
+
+--- stderr
+depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
+depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+
+--- exit=0
