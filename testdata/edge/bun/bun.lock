@@ -1,0 +1,40 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "app",
+      "version": "1.0.0",
+      "dependencies": {
+        "a": "^1.0.0"
+      },
+      "devDependencies": {
+        "b": "^1.0.0"
+      }
+    }
+  },
+  "packages": {
+    "a@1.0.0": {
+      "name": "a",
+      "version": "1.0.0",
+      "dependencies": {
+        "c": "c@1.0.0",
+        "d": "d@1.0.0"
+      }
+    },
+    "b@1.0.0": {
+      "name": "b",
+      "version": "1.0.0",
+      "dependencies": {
+        "d": "d@1.0.0"
+      }
+    },
+    "c@1.0.0": {
+      "name": "c",
+      "version": "1.0.0"
+    },
+    "d@1.0.0": {
+      "name": "d",
+      "version": "1.0.0"
+    }
+  }
+}

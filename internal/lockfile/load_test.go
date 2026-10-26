@@ -108,6 +108,10 @@ func TestLoadDispatches(t *testing.T) {
 	if err != nil || len(g.Nodes) != 5 {
 		t.Fatalf("err=%v", err)
 	}
+	g, _, err = Load(Found{Path: "../../testdata/edge/bun/bun.lock", Ecosystem: "npm", Format: "bun"})
+	if err != nil || len(g.Nodes) != 5 {
+		t.Fatalf("err=%v", err)
+	}
 	if _, _, err := Load(Found{Path: "nope/uv.lock", Format: "uv"}); err == nil {
 		t.Fatal("want read error")
 	}
