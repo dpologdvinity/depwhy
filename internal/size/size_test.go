@@ -1,7 +1,6 @@
 package size
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -136,7 +135,7 @@ func TestPythonSizeWithRecord(t *testing.T) {
 	}
 
 	// RECORD lists relative paths from site-packages
-	recordContent := fmt.Sprintf("demo_pkg/__init__.py,sha256=...,6\ndemo_pkg-1.0.0.dist-info/METADATA,sha256=...,22\ndemo_pkg-1.0.0.dist-info/RECORD,,\n")
+	recordContent := "demo_pkg/__init__.py,sha256=...,6\ndemo_pkg-1.0.0.dist-info/METADATA,sha256=...,22\ndemo_pkg-1.0.0.dist-info/RECORD,,\n"
 	recordFile := filepath.Join(distInfo, "RECORD")
 	if err := os.WriteFile(recordFile, []byte(recordContent), 0644); err != nil { // len(recordContent)
 		t.Fatal(err)

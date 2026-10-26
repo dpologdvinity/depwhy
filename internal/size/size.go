@@ -159,7 +159,7 @@ func (s *Scanner) measureRecord(sitePackagesDir, recordFile string) (int64, erro
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var total int64
 	scanner := bufio.NewScanner(f)
