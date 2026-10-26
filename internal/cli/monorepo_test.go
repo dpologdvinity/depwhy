@@ -115,7 +115,7 @@ func TestRecursiveWarningAndParsePaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, out, errs = run("-C", dir, "-r", "shared")
-	if code != 2 || out != "" || !strings.Contains(errs, "web/bun.lock") {
+	if code != 2 || out != "" || !strings.Contains(errs, filepath.Join("web", "bun.lock")) {
 		t.Fatalf("parse error = %d %q %s", code, out, errs)
 	}
 }

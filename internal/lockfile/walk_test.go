@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -57,11 +58,11 @@ func TestDetectRecursive(t *testing.T) {
 func TestRecursiveGitignore(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
-		".gitignore":                "# comment\nignored/\n*.cache/\n/root-only/\n**/generated/**\nsecret.lock\npackages/*\n!packages/keep/\n\\#hidden/\n\\!hidden/\nspace\\ /\n",
+		".gitignore":                "# comment\nignored/\n*.cache/\n/root-only/\n**/generated/**\nsecret.lock\npackages/*\n!packages/keep/\n\\#hidden/\n\\!hidden/\nspace\\ name/\n",
 		"ignored/package-lock.json": "", "x.cache/Cargo.lock": "",
 		"root-only/go.mod": "", "packages/drop/package-lock.json": "",
 		"packages/keep/package-lock.json": "", "packages/keep/generated/a/go.mod": "",
-		"#hidden/Cargo.lock": "", "!hidden/go.mod": "", "space /go.mod": "",
+		"#hidden/Cargo.lock": "", "!hidden/go.mod": "", "space name/go.mod": "",
 		"nested/root-only/go.mod": "", "nested/.gitignore": "Cargo.lock\n!root-only/go.mod\n",
 		"nested/Cargo.lock": "", "nested/package-lock.json": "",
 		"fallback/.gitignore": "pnpm-lock.yaml\n", "fallback/pnpm-lock.yaml": "",
@@ -187,6 +188,9 @@ func TestIgnoreWildcardBounded(t *testing.T) {
 }
 
 func TestRecursiveUnreadableSubdirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows chmod does not remove directory read access")
+	}
 	if os.Geteuid() == 0 {
 		t.Skip("root can read directories regardless of permissions")
 	}
