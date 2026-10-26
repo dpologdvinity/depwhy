@@ -29,7 +29,7 @@ Spec: `docs/SPEC.md` §13. Plan: `docs/PLAN.md` (Tasks 23–27).
 - `--remove` reports `would free ~X MB` when sizes are known.
 - `depwhy --heaviest [N]`: direct dependencies ranked by exclusive transitive size (the freed set from §6.2).
 
-## v0.4 — More formats
+## v0.4 — More formats — done
 Spec: `docs/SPEC.md` §14. Plan: `docs/PLAN.md` (Tasks 28–33).
 In priority order, each with fixtures and goldens:
 1. `yarn.lock` Berry (YAML, `__metadata`) and Classic v1 (custom format, which needs a small hand parser).
