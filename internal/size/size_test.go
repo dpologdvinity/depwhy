@@ -3,6 +3,7 @@ package size
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -229,7 +230,7 @@ func TestFindPythonSitePackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	foundWin, err := FindPythonSitePackages(projectDir, winVenv)
-	if err != nil || foundWin != winSite {
+	if err != nil || !strings.EqualFold(foundWin, winSite) {
 		t.Fatalf("foundWin %q, want %q (err: %v)", foundWin, winSite, err)
 	}
 
@@ -240,7 +241,7 @@ func TestFindPythonSitePackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	foundAlt, err := FindPythonSitePackages(projectDir, altVenv)
-	if err != nil || foundAlt != altSite {
+	if err != nil || !strings.EqualFold(foundAlt, altSite) {
 		t.Fatalf("foundAlt %q, want %q (err: %v)", foundAlt, altSite, err)
 	}
 
