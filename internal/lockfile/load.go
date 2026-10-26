@@ -16,8 +16,12 @@ import (
 )
 
 // Found is a lockfile selected for loading. Format is one of "pnpm", "npm",
-// "uv" or "cargo"; Ecosystem is "npm", "python" or "cargo".
-type Found struct{ Path, Ecosystem, Format string }
+// "yarn", "bun", "uv", "poetry", "cargo", or "gomod".
+type Found struct {
+	Path, Ecosystem, Format string
+	GoGraph                 bool
+	CargoMetadata           bool
+}
 
 // supported lists the lockfile names depwhy understands. The order is both
 // the load order and the output order (SPEC §4).
@@ -49,7 +53,7 @@ func Detect(dir, ecosystem string) ([]Found, []string, error) {
 			continue
 		}
 		have[s.Ecosystem] = true
-		found = append(found, Found{p, s.Ecosystem, s.Format})
+		found = append(found, Found{Path: p, Ecosystem: s.Ecosystem, Format: s.Format})
 	}
 	if len(found) == 0 {
 		return nil, nil, fmt.Errorf("no supported lockfile in %s (looked for pnpm-lock.yaml, package-lock.json, uv.lock, Cargo.lock)", dir)
@@ -74,7 +78,7 @@ func FromPaths(paths []string, ecosystem string) ([]Found, error) {
 			if s.File == base {
 				ok = true
 				if ecosystem == "" || ecosystem == s.Ecosystem {
-					found = append(found, Found{p, s.Ecosystem, s.Format})
+					found = append(found, Found{Path: p, Ecosystem: s.Ecosystem, Format: s.Format})
 				}
 			}
 		}
@@ -111,6 +115,8 @@ func Load(f Found) (*graph.Graph, []string, error) {
 		return ParseUV(f.Path, data)
 	case "cargo":
 		return ParseCargo(f.Path, data)
+	case "gomod":
+		return ParseGoMod(f.Path, data, f.GoGraph)
 	}
 	return nil, nil, fmt.Errorf("unknown lockfile format %q", f.Format)
 }

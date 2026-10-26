@@ -62,7 +62,7 @@ func TestBuildFailsWithoutRoots(t *testing.T) {
 
 // TestKindString checks the lowercase names printed for each edge kind.
 func TestKindString(t *testing.T) {
-	for k, want := range map[Kind]string{Prod: "prod", Dev: "dev", Optional: "optional", Peer: "peer"} {
+	for k, want := range map[Kind]string{Prod: "prod", Dev: "dev", Optional: "optional", Peer: "peer", Indirect: "indirect"} {
 		if k.String() != want {
 			t.Errorf("%d = %q", k, k.String())
 		}

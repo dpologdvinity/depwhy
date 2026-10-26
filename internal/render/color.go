@@ -41,9 +41,9 @@ func (s Style) Yellow(str string) string { return s.wrap("33", str) }
 // Dim de-emphasizes markers such as (*) and the dev kind.
 func (s Style) Dim(str string) string { return s.wrap("2", str) }
 
-// kind prints an edge kind, dimming dev.
+// kind prints an edge kind, dimming dev and indirect.
 func (s Style) kind(k graph.Kind) string {
-	if k == graph.Dev {
+	if k == graph.Dev || k == graph.Indirect {
 		return s.Dim(k.String())
 	}
 	return k.String()

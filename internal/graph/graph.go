@@ -24,11 +24,12 @@ const (
 	Dev                  // devDependencies / dev groups
 	Optional             // optionalDependencies / extras
 	Peer                 // npm peerDependencies
+	Indirect             // go.mod // indirect requirements
 )
 
 // String returns the lowercase kind name used in text and JSON output.
 func (k Kind) String() string {
-	return [...]string{"prod", "dev", "optional", "peer"}[k]
+	return [...]string{"prod", "dev", "optional", "peer", "indirect"}[k]
 }
 
 // Node is one package in the graph, or a root (the project or a workspace

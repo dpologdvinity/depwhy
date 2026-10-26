@@ -116,6 +116,10 @@ func TestLoadDispatches(t *testing.T) {
 	if err != nil || len(g.Nodes) != 6 {
 		t.Fatalf("err=%v", err)
 	}
+	g, _, err = Load(Found{Path: "../../testdata/edge/gomod/go.mod", Ecosystem: "go", Format: "gomod"})
+	if err != nil || len(g.Nodes) != 3 {
+		t.Fatalf("err=%v", err)
+	}
 	if _, _, err := Load(Found{Path: "nope/uv.lock", Format: "uv"}); err == nil {
 		t.Fatal("want read error")
 	}
