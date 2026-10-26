@@ -32,6 +32,9 @@ func TestUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{},
 		{"--remove", "--dupes"},
+		{"--remove", "--heaviest"},
+		{"--dupes", "--heaviest"},
+		{"--heaviest", "x"},
 		{"--remove"},
 		{"--dupes", "x"},
 		{"a", "b"},
@@ -304,5 +307,66 @@ func TestRepeatedFlagsAndQueryAfterFlags(t *testing.T) {
 	code, out, _ := run("d", "-C", project("npm"), "--no-color", "--depth", "1")
 	if code != 0 || !strings.Contains(out, "…") {
 		t.Fatalf("got %d %q", code, out)
+	}
+}
+
+// TestHeaviestAndSizeCLI checks that --heaviest and size annotations work when
+// packages are installed on disk.
+func TestHeaviestAndSizeCLI(t *testing.T) {
+	dir := t.TempDir()
+	// Copy testdata/projects/npm/package-lock.json to dir
+	src, err := os.ReadFile(filepath.Join(project("npm"), "package-lock.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), src, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create fake node_modules
+	aDir := filepath.Join(dir, "node_modules", "a")
+	cDir := filepath.Join(dir, "node_modules", "c")
+	bDir := filepath.Join(dir, "node_modules", "b")
+	_ = os.MkdirAll(aDir, 0755)
+	_ = os.MkdirAll(cDir, 0755)
+	_ = os.MkdirAll(bDir, 0755)
+	_ = os.WriteFile(filepath.Join(aDir, "a.js"), make([]byte, 1024), 0644) // 1 KB
+	_ = os.WriteFile(filepath.Join(cDir, "c.js"), make([]byte, 2048), 0644) // 2 KB
+	_ = os.WriteFile(filepath.Join(bDir, "b.js"), make([]byte, 512), 0644)  // 512 B
+
+	// Test --heaviest text
+	code, out, errs := run("-C", dir, "--no-color", "--heaviest")
+	if code != 0 {
+		t.Fatalf("code=%d errs=%s", code, errs)
+	}
+	if !strings.Contains(out, "Top 2 heaviest direct dependencies by exclusive size:") {
+		t.Fatalf("heaviest text header missing:\n%s", out)
+	}
+
+	// Test --heaviest json
+	code, out, errs = run("-C", dir, "--json", "--heaviest")
+	if code != 0 {
+		t.Fatalf("code=%d errs=%s", code, errs)
+	}
+	if !strings.Contains(out, `"mode": "heaviest"`) || !strings.Contains(out, `"freed_size_bytes":`) {
+		t.Fatalf("heaviest json output:\n%s", out)
+	}
+
+	// Test --remove with freed size
+	code, out, errs = run("-C", dir, "--no-color", "--remove", "a")
+	if code != 0 {
+		t.Fatalf("code=%d errs=%s", code, errs)
+	}
+	if !strings.Contains(out, "(freeing ~") {
+		t.Fatalf("remove text missing freeing size:\n%s", out)
+	}
+
+	// Test why query with size
+	code, out, errs = run("-C", dir, "--no-color", "a")
+	if code != 0 {
+		t.Fatalf("code=%d errs=%s", code, errs)
+	}
+	if !strings.Contains(out, "a@1.0.0 (1.0 KB)") {
+		t.Fatalf("why text missing size:\n%s", out)
 	}
 }

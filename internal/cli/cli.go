@@ -19,6 +19,7 @@ import (
 	"github.com/dpologdvinity/depwhy/internal/graph"
 	"github.com/dpologdvinity/depwhy/internal/lockfile"
 	"github.com/dpologdvinity/depwhy/internal/render"
+	"github.com/dpologdvinity/depwhy/internal/size"
 )
 
 // Version is overridden at release time via -ldflags.
@@ -38,6 +39,7 @@ const usage = `usage:
   depwhy [flags] <package>[@version]      explain why <package> is installed
   depwhy [flags] --remove <package>       impact of removing a direct dependency
   depwhy [flags] --dupes                  packages installed at more than one version
+  depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
   depwhy --version | --help
 
 flags:
@@ -57,6 +59,8 @@ notes:
 type options struct {
 	remove, dupes, prod, all, json, noColor bool
 	online, refresh                         bool     // v0.2: network lookups (SPEC §12)
+	heaviest                                int      // v0.3: heaviest mode limit (SPEC §13)
+	venv                                    string   // v0.3: custom python virtualenv path
 	dir                                     string   // directory searched for lockfiles
 	lockfiles                               []string // explicit lockfile paths; disables detection
 	ecosystem                               string   // "", "npm", "python", or "cargo"
@@ -82,6 +86,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&o.noColor, "no-color", false, "disable ANSI color")
 	fs.BoolVar(&o.online, "online", false, "look up security advisories and deprecated/yanked status (uses the network)")
 	fs.BoolVar(&o.refresh, "refresh", false, "with --online, ignore cached answers")
+	fs.IntVar(&o.heaviest, "heaviest", 0, "rank direct dependencies by exclusive transitive size freed")
+	fs.Lookup("heaviest").NoOptDefVal = "10"
+	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv in target directory)")
 	fs.BoolVarP(&version, "version", "V", false, "print version and exit")
 	fs.BoolVarP(&help, "help", "h", false, "print usage and exit")
 
@@ -107,9 +114,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // returns a usage message, or "" when the invocation is valid, and stores the
 // package argument in o.query.
 func validate(o *options, pos []string) string {
+	modeCount := 0
+	if o.remove {
+		modeCount++
+	}
+	if o.dupes {
+		modeCount++
+	}
+	if o.heaviest > 0 {
+		modeCount++
+	}
+	if modeCount > 1 {
+		return "--remove, --dupes, and --heaviest cannot be combined"
+	}
 	switch {
-	case o.remove && o.dupes:
-		return "--remove and --dupes cannot be combined"
 	case o.ecosystem != "" && o.ecosystem != "npm" && o.ecosystem != "python" && o.ecosystem != "cargo":
 		return "unknown ecosystem " + o.ecosystem + " (want npm, python, or cargo)"
 	case o.refresh && !o.online:
@@ -118,10 +136,12 @@ func validate(o *options, pos []string) string {
 		return "--depth must be >= 0"
 	case o.dupes && len(pos) != 0:
 		return "--dupes takes no package argument"
-	case !o.dupes && len(pos) != 1:
+	case o.heaviest > 0 && len(pos) != 0:
+		return "--heaviest takes no package argument"
+	case !o.dupes && o.heaviest == 0 && len(pos) != 1:
 		return "expected exactly one package argument"
 	}
-	if !o.dupes {
+	if !o.dupes && o.heaviest == 0 {
 		o.query = pos[0]
 	}
 	return ""
@@ -201,6 +221,9 @@ func execute(o *options, stdout, stderr io.Writer) int {
 	if o.dupes {
 		return s.dupes()
 	}
+	if o.heaviest > 0 {
+		return s.heaviest()
+	}
 	return s.query()
 }
 
@@ -231,6 +254,65 @@ func (s *session) dupes() int {
 		st := s.style
 		st.Notes = notes[g]
 		render.DupesText(s.stdout, g, results[i], st)
+	}
+	return s.finishJSON(doc)
+}
+
+// sizeOf returns a function measuring on-disk size for a node in g.
+func (s *session) sizeOf(g *graph.Graph) func(int) (int64, bool) {
+	scanner := size.NewScanner()
+	projectDir := s.o.dir
+
+	switch g.Ecosystem {
+	case "npm":
+		return func(n int) (int64, bool) {
+			if g.Nodes[n].Root {
+				return 0, false
+			}
+			sz, err := scanner.NPMSize(projectDir, filepath.Join("node_modules", filepath.FromSlash(g.Nodes[n].Name)))
+			if err != nil {
+				return 0, false
+			}
+			return sz, true
+		}
+	case "python":
+		sitePackages, err := size.FindPythonSitePackages(projectDir, s.o.venv)
+		if err != nil {
+			return func(int) (int64, bool) { return 0, false }
+		}
+		return func(n int) (int64, bool) {
+			if g.Nodes[n].Root {
+				return 0, false
+			}
+			sz, err := scanner.PythonSize(sitePackages, g.Nodes[n].Name, g.Nodes[n].Version)
+			if err != nil {
+				return 0, false
+			}
+			return sz, true
+		}
+	default:
+		return func(int) (int64, bool) { return 0, false }
+	}
+}
+
+// heaviest runs --heaviest mode: ranks direct dependencies by exclusive transitive freed size.
+func (s *session) heaviest() int {
+	doc := render.NewDoc("heaviest", nil)
+	for i, g := range s.graphs {
+		sizeOf := s.sizeOf(g)
+		items := g.Heaviest(graph.HeaviestOpts{
+			Prod:  s.o.prod,
+			Limit: s.o.heaviest,
+			Size:  sizeOf,
+		})
+		if s.o.json {
+			doc.Add(render.HeaviestJSON(g, items))
+			continue
+		}
+		if i > 0 {
+			fmt.Fprintln(s.stdout)
+		}
+		render.HeaviestText(s.stdout, g, items, s.style)
 	}
 	return s.finishJSON(doc)
 }
@@ -269,8 +351,11 @@ func (s *session) query() int {
 	removes := make([]graph.RemoveResult, len(matches))
 	for i, m := range matches {
 		shown[m.g] = append(shown[m.g], m.n)
+		sizeOf := s.sizeOf(m.g)
 		if o.remove {
-			removes[i] = m.g.Remove(m.n, o.prod)
+			rem := m.g.Remove(m.n, o.prod)
+			rem.ComputeFreedSize(sizeOf)
+			removes[i] = rem
 			shown[m.g] = append(shown[m.g], removes[i].Freed...)
 			for _, k := range removes[i].Kept {
 				shown[m.g] = append(shown[m.g], k.Node)
@@ -285,11 +370,21 @@ func (s *session) query() int {
 	for i, m := range matches {
 		st := s.style
 		st.Notes = notes[m.g]
+		sizeOf := s.sizeOf(m.g)
+		sizes := map[int]int64{}
+		for _, n := range shown[m.g] {
+			if sz, ok := sizeOf(n); ok {
+				sizes[n] = sz
+			}
+		}
+		if len(sizes) > 0 {
+			st.Sizes = sizes
+		}
 		switch {
 		case o.json && o.remove:
-			doc.Add(render.RemoveJSON(m.g, removes[i], notes[m.g]))
+			doc.Add(render.RemoveJSONWithSizes(m.g, removes[i], notes[m.g], sizes))
 		case o.json:
-			doc.Add(render.WhyJSON(m.g, whys[i], notes[m.g]))
+			doc.Add(render.WhyJSONWithSizes(m.g, whys[i], notes[m.g], sizes))
 		default:
 			if i > 0 {
 				fmt.Fprintln(s.stdout)
