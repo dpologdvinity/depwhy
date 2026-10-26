@@ -21,10 +21,21 @@ type Note struct {
 // the run was offline; a non-nil one (even if empty) means --online.
 type Notes map[int]Note
 
-// suffix returns the text appended after a package's name@version, such as
-// "  ⚠ GHSA-1, GHSA-2  [deprecated: use b instead]", or "" when there is nothing
-// to show (SPEC §12.6).
+// suffix returns the text appended after a package's name@version, including
+// size annotation and online findings.
 func (s Style) suffix(node int) string {
+	var sb strings.Builder
+	if s.Sizes != nil {
+		if sz, ok := s.Sizes[node]; ok {
+			sb.WriteString(" (" + FormatSize(sz) + ")")
+		}
+	}
+	sb.WriteString(s.suffixOnline(node))
+	return sb.String()
+}
+
+// suffixOnline returns the online findings suffix, or "" when there is none.
+func (s Style) suffixOnline(node int) string {
 	n, ok := s.Notes[node]
 	if !ok {
 		return ""

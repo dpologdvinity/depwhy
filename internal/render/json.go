@@ -63,8 +63,9 @@ func (d *Doc) Encode(w io.Writer) error {
 
 // pkgJSON is a package name and version.
 type pkgJSON struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
 	*healthJSON
 }
 
@@ -126,22 +127,24 @@ type whyJSON struct {
 
 // keptJSON is a package that stays after a removal, and the package keeping it.
 type keptJSON struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
 	*healthJSON
 	Via pkgJSON `json:"via"`
 }
 
 // removeJSON is one result of remove mode.
 type removeJSON struct {
-	Ecosystem   string     `json:"ecosystem"`
-	Lockfile    string     `json:"lockfile"`
-	Package     pkgJSON    `json:"package"`
-	Direct      bool       `json:"direct"`
-	StillNeeded bool       `json:"still_needed"`
-	Freed       []pkgJSON  `json:"freed"`
-	Kept        []keptJSON `json:"kept"`
-	RequiredBy  []leadJSON `json:"required_by"`
+	Ecosystem      string     `json:"ecosystem"`
+	Lockfile       string     `json:"lockfile"`
+	Package        pkgJSON    `json:"package"`
+	Direct         bool       `json:"direct"`
+	StillNeeded    bool       `json:"still_needed"`
+	FreedSizeBytes *int64     `json:"freed_size_bytes,omitempty"`
+	Freed          []pkgJSON  `json:"freed"`
+	Kept           []keptJSON `json:"kept"`
+	RequiredBy     []leadJSON `json:"required_by"`
 }
 
 // dupeVersionJSON is one version of a duplicated package.
@@ -169,10 +172,15 @@ func pkg(g *graph.Graph, n int) pkgJSON {
 	return pkgJSON{Name: g.Nodes[n].Name, Version: g.Nodes[n].Version}
 }
 
-// pkgWith is pkg plus the online findings for the node (none when notes is nil).
-func pkgWith(g *graph.Graph, n int, notes Notes) pkgJSON {
+// pkgWith is pkg plus online findings and size for the node (none when notes/sizes are nil).
+func pkgWith(g *graph.Graph, n int, notes Notes, sizes map[int]int64) pkgJSON {
 	p := pkg(g, n)
 	p.healthJSON = notes.health(n)
+	if sizes != nil {
+		if sz, ok := sizes[n]; ok {
+			p.SizeBytes = &sz
+		}
+	}
 	return p
 }
 
@@ -187,6 +195,11 @@ func leadsJSON(g *graph.Graph, ls []graph.Lead) []leadJSON {
 
 // WhyJSON builds one why result entry.
 func WhyJSON(g *graph.Graph, r graph.WhyResult, notes Notes) any {
+	return WhyJSONWithSizes(g, r, notes, nil)
+}
+
+// WhyJSONWithSizes builds one why result entry with optional size information.
+func WhyJSONWithSizes(g *graph.Graph, r graph.WhyResult, notes Notes, sizes map[int]int64) any {
 	paths := make([][]stepJSON, 0, len(r.Paths))
 	for _, p := range r.Paths {
 		steps := make([]stepJSON, 0, len(p))
@@ -202,22 +215,38 @@ func WhyJSON(g *graph.Graph, r graph.WhyResult, notes Notes) any {
 		}
 		paths = append(paths, steps)
 	}
-	return whyJSON{g.Ecosystem, filepath.Base(g.Lockfile), pkgWith(g, r.Target, notes), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
+	return whyJSON{g.Ecosystem, filepath.Base(g.Lockfile), pkgWith(g, r.Target, notes, sizes), r.DevOnly, r.Direct, paths, r.Truncated, leadsJSON(g, r.Leads)}
 }
 
 // RemoveJSON builds one remove result entry.
 func RemoveJSON(g *graph.Graph, r graph.RemoveResult, notes Notes) any {
+	return RemoveJSONWithSizes(g, r, notes, nil)
+}
+
+// RemoveJSONWithSizes builds one remove result entry with optional size information.
+func RemoveJSONWithSizes(g *graph.Graph, r graph.RemoveResult, notes Notes, sizes map[int]int64) any {
 	out := removeJSON{
-		Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Package: pkgWith(g, r.Target, notes),
-		Direct: !r.NotDirect, StillNeeded: r.StillNeeded,
+		Ecosystem: g.Ecosystem, Lockfile: filepath.Base(g.Lockfile), Package: pkgWith(g, r.Target, notes, sizes),
+		Direct: !r.NotDirect, StillNeeded: r.StillNeeded, FreedSizeBytes: r.FreedSize,
 		Freed: []pkgJSON{}, Kept: []keptJSON{}, RequiredBy: leadsJSON(g, r.RequiredBy),
 	}
 	for _, n := range r.Freed {
-		out.Freed = append(out.Freed, pkgWith(g, n, notes))
+		out.Freed = append(out.Freed, pkgWith(g, n, notes, sizes))
 	}
 	for _, k := range r.Kept {
 		p := pkg(g, k.Node)
-		out.Kept = append(out.Kept, keptJSON{p.Name, p.Version, notes.health(k.Node), pkg(g, k.Via)})
+		if sizes != nil {
+			if sz, ok := sizes[k.Node]; ok {
+				p.SizeBytes = &sz
+			}
+		}
+		viaP := pkg(g, k.Via)
+		if sizes != nil {
+			if sz, ok := sizes[k.Via]; ok {
+				viaP.SizeBytes = &sz
+			}
+		}
+		out.Kept = append(out.Kept, keptJSON{p.Name, p.Version, p.SizeBytes, notes.health(k.Node), viaP})
 	}
 	return out
 }
@@ -231,6 +260,38 @@ func DupesJSON(g *graph.Graph, ds []graph.Dupe, notes Notes) any {
 			dj.Versions = append(dj.Versions, dupeVersionJSON{g.Nodes[v.Node].Version, notes.health(v.Node), leadsJSON(g, v.Leads)})
 		}
 		out.Dupes = append(out.Dupes, dj)
+	}
+	return out
+}
+
+type heaviestItemJSON struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	FreedSize  int64  `json:"freed_size_bytes"`
+	FreedCount int    `json:"freed_count"`
+}
+
+type heaviestJSON struct {
+	Ecosystem string             `json:"ecosystem"`
+	Lockfile  string             `json:"lockfile"`
+	Heaviest  []heaviestItemJSON `json:"heaviest"`
+}
+
+// HeaviestJSON builds one heaviest result entry.
+func HeaviestJSON(g *graph.Graph, items []graph.HeaviestItem) any {
+	out := heaviestJSON{
+		Ecosystem: g.Ecosystem,
+		Lockfile:  filepath.Base(g.Lockfile),
+		Heaviest:  []heaviestItemJSON{},
+	}
+	for _, it := range items {
+		n := g.Nodes[it.Target]
+		out.Heaviest = append(out.Heaviest, heaviestItemJSON{
+			Name:       n.Name,
+			Version:    n.Version,
+			FreedSize:  it.FreedSize,
+			FreedCount: it.FreedCount,
+		})
 	}
 	return out
 }

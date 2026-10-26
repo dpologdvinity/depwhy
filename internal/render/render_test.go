@@ -379,3 +379,70 @@ func TestRemovePluralization(t *testing.T) {
 		t.Fatalf("got:\n%s", buf.String())
 	}
 }
+
+func TestRenderSizesText(t *testing.T) {
+	g := npmGraph(t)
+	// why text with size
+	var buf bytes.Buffer
+	idx := 2
+	st := Style{
+		Sizes: map[int]int64{
+			idx: 1536, // 1.5 KB
+		},
+	}
+	WhyText(&buf, g, g.Why(idx, graph.WhyOpts{}), st)
+	if !strings.Contains(buf.String(), "b@1.0.0 (1.5 KB)  npm · package-lock.json") {
+		t.Fatalf("why header missing size:\n%s", buf.String())
+	}
+
+	// remove text with freed size
+	buf.Reset()
+	aNode := find(t, g, "a@1.0.0")
+	rem := g.Remove(aNode, false)
+	sz := int64(45000000)
+	rem.FreedSize = &sz
+	RemoveText(&buf, g, rem, st)
+	if !strings.Contains(buf.String(), "would remove 2 packages (freeing ~42.9 MB):") {
+		t.Fatalf("remove text missing freeing size:\n%s", buf.String())
+	}
+
+	// heaviest text
+	buf.Reset()
+	items := []graph.HeaviestItem{
+		{Target: 0, FreedSize: 45000000, FreedCount: 2},
+	}
+	HeaviestText(&buf, g, items, Style{})
+	wantHeader := "Top 1 heaviest direct dependencies by exclusive size:"
+	if !strings.Contains(buf.String(), wantHeader) {
+		t.Fatalf("heaviest text missing header:\n%s", buf.String())
+	}
+}
+
+func TestRenderSizesJSON(t *testing.T) {
+	g := npmGraph(t)
+	idx := 2
+	sizes := map[int]int64{idx: 1024}
+	why := WhyJSONWithSizes(g, g.Why(idx, graph.WhyOpts{}), nil, sizes)
+	data, _ := json.Marshal(why)
+	if !strings.Contains(string(data), `"size_bytes":1024`) {
+		t.Fatalf("WhyJSONWithSizes missing size_bytes: %s", string(data))
+	}
+
+	rem := g.Remove(0, false)
+	sz := int64(2048)
+	rem.FreedSize = &sz
+	remJSON := RemoveJSONWithSizes(g, rem, nil, sizes)
+	data, _ = json.Marshal(remJSON)
+	if !strings.Contains(string(data), `"freed_size_bytes":2048`) {
+		t.Fatalf("RemoveJSONWithSizes missing freed_size_bytes: %s", string(data))
+	}
+
+	items := []graph.HeaviestItem{
+		{Target: 0, FreedSize: 5000, FreedCount: 2},
+	}
+	hJSON := HeaviestJSON(g, items)
+	data, _ = json.Marshal(hJSON)
+	if !strings.Contains(string(data), `"freed_size_bytes":5000`) || !strings.Contains(string(data), `"freed_count":2`) {
+		t.Fatalf("HeaviestJSON missing fields: %s", string(data))
+	}
+}

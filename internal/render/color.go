@@ -13,6 +13,8 @@ type Style struct {
 	// Notes holds online findings for the graph being rendered (nil when offline).
 	// A Style is cheap to copy, so callers make one per graph.
 	Notes Notes
+	// Sizes maps a node index to its size in bytes (nil when size data is absent).
+	Sizes map[int]int64
 }
 
 // wrap surrounds str with an ANSI SGR code, or returns it unchanged when color

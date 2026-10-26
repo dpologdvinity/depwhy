@@ -60,7 +60,13 @@ func rootOf(l graph.Lead) int { return l.Root }
 
 // WhyText prints one reverse tree, with a footer summarizing the direct dependencies.
 func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style) {
-	fmt.Fprintln(w, s.Bold(fmt.Sprintf("%s  %s", pkgID(g, r.Target), source(g)))+s.suffix(r.Target))
+	hdr := pkgID(g, r.Target)
+	if s.Sizes != nil {
+		if sz, ok := s.Sizes[r.Target]; ok {
+			hdr += " (" + FormatSize(sz) + ")"
+		}
+	}
+	fmt.Fprintln(w, s.Bold(fmt.Sprintf("%s  %s", hdr, source(g)))+s.suffixOnline(r.Target))
 	kids := append([]*graph.TreeNode(nil), r.Tree.Children...)
 	if r.MorePaths != "" {
 		kids = append(kids, &graph.TreeNode{Node: nodeMore, Marker: fmt.Sprintf("… %s more paths (use --all)", r.MorePaths)})
@@ -125,6 +131,11 @@ func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style) {
 	fmt.Fprintln(w, s.Bold(fmt.Sprintf("removing %s (direct, %s) from %s  %s", t, s.kind(r.Kind), g.Nodes[r.Root].Name, source(g))))
 	if len(r.Freed) == 0 {
 		fmt.Fprintln(w, "would remove 0 packages")
+	} else if r.FreedSize != nil {
+		fmt.Fprintf(w, "would remove %s (freeing ~%s):\n", plural(len(r.Freed), "package"), FormatSize(*r.FreedSize))
+		for _, n := range r.Freed {
+			fmt.Fprintf(w, "  %s%s\n", pkgID(g, n), s.suffix(n))
+		}
 	} else {
 		fmt.Fprintf(w, "would remove %s:\n", plural(len(r.Freed), "package"))
 		for _, n := range r.Freed {
@@ -158,5 +169,18 @@ func DupesText(w io.Writer, g *graph.Graph, ds []graph.Dupe, s Style) {
 		for _, v := range d.Versions {
 			fmt.Fprintf(w, "  %s%s  via %s\n", g.Nodes[v.Node].Version, s.suffix(v.Node), leadText(g, v.Leads, s, directOf))
 		}
+	}
+}
+
+// HeaviestText prints top direct dependencies ranked by exclusive transitive freed size.
+func HeaviestText(w io.Writer, g *graph.Graph, items []graph.HeaviestItem, s Style) {
+	fmt.Fprintln(w, s.Bold(source(g)))
+	if len(items) == 0 {
+		fmt.Fprintln(w, "no direct dependencies found with size data")
+		return
+	}
+	fmt.Fprintf(w, "Top %d heaviest direct dependencies by exclusive size:\n", len(items))
+	for i, it := range items {
+		fmt.Fprintf(w, "  %2d. %-24s ~%-8s (freed: %s)\n", i+1, pkgID(g, it.Target), FormatSize(it.FreedSize), plural(it.FreedCount, "package"))
 	}
 }
