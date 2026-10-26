@@ -105,6 +105,8 @@ func Load(f Found) (*graph.Graph, []string, error) {
 		return ParseYarn(f.Path, data)
 	case "bun":
 		return ParseBun(f.Path, data)
+	case "poetry":
+		return ParsePoetry(f.Path, data)
 	case "uv":
 		return ParseUV(f.Path, data)
 	case "cargo":
