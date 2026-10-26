@@ -14,6 +14,7 @@ lockfiles (offline unless you pass `--online`):
 | `depwhy <pkg>` | Why is this package installed? |
 | `depwhy --remove <pkg>` | What would removing this direct dependency free? |
 | `depwhy --dupes` | Which packages are installed at more than one version? |
+| `depwhy --heaviest [N]` | Which direct dependencies free the most disk space? |
 
 The central idea is that every supported lockfile is turned into the same small
 graph, and all three questions are answered on that graph. Parsers know about
@@ -39,9 +40,10 @@ main.go                   entry point: os.Exit(cli.Run(...))
 internal/
   cli/                    flags, lockfile loading, mode dispatch, exit codes
   lockfile/               detection and one parser per format
-  graph/                  graph model and the Why / Remove / Dupes algorithms
+  graph/                  graph model and the Why / Remove / Dupes / Heaviest algorithms
   render/                 text and JSON output, ANSI color
   health/                 optional online lookups: advisories, deprecated/yanked
+  size/                   on-disk package directory scanning and human size formatting
 testdata/
   projects/<name>/        one fixture project per ecosystem
   edge/<name>/            edge-case lockfiles used only by parser tests

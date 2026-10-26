@@ -38,6 +38,7 @@ c  2 versions
 - **Why**: every chain from your direct dependencies to a package.
 - **Remove**: what would leave the tree if you removed a direct dependency, and what would stay and why. It is a dry run; nothing is modified.
 - **Dupes**: packages installed at more than one version, and which direct dependencies pull in each.
+- **Heaviest**: direct dependencies ranked by exclusive transitive on-disk size freed.
 - **Polyglot**: if a directory holds lockfiles for several ecosystems, all of them are loaded and searched.
 - **Offline by default, read-only always**: no network unless you pass `--online`, no package manager needed, no lockfile or manifest changed.
 - **Health info (opt-in)**: with `--online`, packages show known security advisories and deprecated or yanked status.
@@ -90,6 +91,7 @@ Check the install with `depwhy --version`.
 depwhy [flags] <package>[@version]      explain why <package> is installed
 depwhy [flags] --remove <package>       impact of removing a direct dependency
 depwhy [flags] --dupes                  packages installed at more than one version
+depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
 ```
 
 Run it in a project directory, or point it at one with `-C`:
@@ -100,6 +102,7 @@ depwhy lodash@4.17.21             # only that version
 depwhy @babel/core                # scoped npm names work
 depwhy --remove express           # what would removing express free?
 depwhy --dupes --prod             # duplicates, ignoring dev dependencies
+depwhy --heaviest                 # top 10 heaviest direct dependencies
 depwhy -C ../other-project react  # look somewhere else
 depwhy --json lodash | jq .       # machine-readable
 ```
@@ -114,6 +117,8 @@ for Cargo. If nothing matches, depwhy suggests close names.
 |---|---|
 | `--remove` | Removal-impact mode. The argument is a direct dependency. |
 | `--dupes` | List packages installed at more than one version. |
+| `--heaviest` | Rank direct dependencies by exclusive transitive size freed (default 10). |
+| `--venv` | Path to Python virtualenv (default `.venv` in target directory). |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |
 | `-e`, `--ecosystem` | Restrict to `npm`, `python`, or `cargo`. |

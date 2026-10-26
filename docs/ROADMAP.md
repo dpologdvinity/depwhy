@@ -23,7 +23,7 @@ Adds a `--online` flag. Without it, behavior is identical to v0.1.
 - Network failures produce warnings, never errors, and the exit code stays the same.
 - Timeouts: 5 s per request, 8 concurrent requests.
 
-## v0.3 — Size and "what does it cost me"
+## v0.3 — Size and "what does it cost me" — done
 Spec: `docs/SPEC.md` §13. Plan: `docs/PLAN.md` (Tasks 23–27).
 - On-disk size when installed: npm uses `node_modules/<path>` from the lockfile key, Python uses the venv `site-packages` (`.venv` in the dir, or `--venv`), and cargo is skipped.
 - `--remove` reports `would free ~X MB` when sizes are known.
