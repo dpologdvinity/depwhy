@@ -1,0 +1,23 @@
+[project]
+name = "app"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = ["six>=1.16"]
+
+[project.optional-dependencies]
+fast = ["typing-extensions>=4"]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+toml = "*"
+
+[tool.poetry.group.lint.dependencies]
+idna = "*"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+certifi = "*"

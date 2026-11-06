@@ -133,7 +133,7 @@ The strings are warnings. They never fail a run.
 | `yarn.lock` Berry / Classic | workspace entries or `package.json` | Berry YAML descriptors or Classic line-oriented blocks with descriptor map |
 | `bun.lock` (text, Bun 1.2+) | `""` and workspace directories | `packages` keys are install paths (`parent/child`); a name resolves to the nearest key, walking up to the top level |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
-| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables, categorized by `category` and dependencies |
+| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups and extras, else the lockfile's `groups` or `category` |
 | `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
 | `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` |
 
@@ -207,7 +207,8 @@ dependencies are not "kept" for the package that happens to link to it.
 
 Group non-root nodes by name, keep groups with two or more versions, and attach
 the leads for each version. Groups sort by version count (descending) then name.
-Versions sort as plain strings, which is what the spec asks for.
+Versions sort with `compareVersions` (`version.go`), shared by every version sort in
+`internal/graph` (SPEC §6.5).
 
 `DupesAcross` (`across.go`) groups all non-root nodes across graphs by ecosystem,
 exact name and version, honoring `--prod`. Each version keeps one source per
@@ -457,6 +458,8 @@ Dependabot keeps Go modules and the pinned Actions up to date.
   as roots (SPEC §8.4).
 - Platform markers (`uv.lock`) are ignored, so every edge counts on every platform.
 - Workspace members cannot be queried by name; only packages are matched.
-- Versions are compared as strings, not semantic versions.
+- Version ordering is a pragmatic total order, not a full semver or PEP 440
+  implementation: PEP 440 implicit post releases (`1.0-1`) sort as pre-releases and
+  spellings such as `alpha` and `a` are not normalized.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what is planned next.
