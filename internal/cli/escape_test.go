@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,13 @@ const evilLock = `{"name":"app","version":"1.0.0","lockfileVersion":3,"packages"
 // stderr lines, while JSON keeps the exact strings.
 func TestLockfileTextIsEscaped(t *testing.T) {
 	root := t.TempDir()
-	sub := filepath.Join(root, "sub\x1b[2J")
+	// Windows forbids control characters in file names, so there the nested
+	// project's directory label carries no escape; its lockfile still does.
+	subName := "sub\x1b[2J"
+	if runtime.GOOS == "windows" {
+		subName = "sub"
+	}
+	sub := filepath.Join(root, subName)
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
