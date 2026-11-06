@@ -133,7 +133,7 @@ The strings are warnings. They never fail a run.
 | `yarn.lock` Berry / Classic | workspace entries or `package.json` | Berry YAML descriptors or Classic line-oriented blocks with descriptor map |
 | `bun.lock` v1 | `""` and workspaces | JSONC workspaces map and packages dictionary |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
-| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables, categorized by `category` and dependencies |
+| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups and extras, else the lockfile's `groups` or `category` |
 | `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
 | `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` |
 

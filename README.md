@@ -213,7 +213,7 @@ output, so avoid `--online` on projects whose package names are confidential.
 | `bun.lock` | Bun 1.2+ JSONC | npm |
 | `package-lock.json` | lockfileVersion 1, 2, and 3 | npm |
 | `uv.lock` | version 1 | python |
-| `poetry.lock` | all versions | python |
+| `poetry.lock` | Poetry 1.x and 2.x | python |
 | `Cargo.lock` | versions 3 and 4 (plus `--cargo-metadata`) | cargo |
 | `go.mod` | all versions (plus `--go-graph`) | go |
 
@@ -249,6 +249,7 @@ individual files. It does not enable recursion itself. Its JSON adds
 
 - **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots. Use `--cargo-metadata` when cargo is available on PATH for precise dependency discrimination and workspace resolution.
 - **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`.
+- **Poetry**: direct dependencies are classified from `pyproject.toml`: the `main` group and `[project].dependencies` are `prod`, every other group (dev, test, lint, docs, ...) is `dev`, and extras are `optional`. Without `pyproject.toml`, depwhy falls back to the lockfile's `groups` (Poetry 2.x) or `category` (before 1.5); Poetry 1.5-1.8 lockfiles record neither, so every package then counts as `prod`.
 - **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.

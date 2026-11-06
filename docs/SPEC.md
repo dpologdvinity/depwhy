@@ -636,7 +636,14 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
 
 #### 14.2.3 Poetry `poetry.lock`
 - TOML format with `[[package]]` tables.
-- Fields: `name`, `version`, `category` (`main` -> Prod, `dev` -> Dev), and `dependencies` table.
+- Fields: `name`, `version`, `optional`, `groups` (Poetry >= 2.0), `category` (Poetry < 1.5), and `dependencies` table (a dependency table with `optional = true` is an Optional edge).
+- Direct dependencies come from `pyproject.toml`. Only the `main` group is production:
+  `[tool.poetry.dependencies]`, `[tool.poetry.group.main.dependencies]` and `[project].dependencies` -> Prod;
+  `[tool.poetry.group.<name>.dependencies]` for any other group and legacy `[tool.poetry.dev-dependencies]` -> Dev;
+  `[project.optional-dependencies]` and Poetry dependencies with `optional = true` (extras) -> Optional.
+- Without `pyproject.toml` (or with no declared dependencies), packages that nothing depends on become direct.
+  Their kind comes from `groups` (contains `main` -> Prod, else Dev), else `category` (`dev` -> Dev, else Prod);
+  a production package with `optional = true` is Optional. Poetry 1.5-1.8 lockfiles record neither field, so all are Prod.
 - Root: package defined by `pyproject.toml` in same directory, or directory name fallback.
 
 #### 14.2.4 Go `go.mod`
