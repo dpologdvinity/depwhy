@@ -327,7 +327,8 @@ Zero dupes: `no duplicate packages` (per ecosystem).
 ### 7.3 JSON
 
 Top-level keys are always present. Arrays are never `null` (use `[]`). Field names
-are snake_case. This schema becomes a stability promise at 1.0.
+are snake_case. The complete, frozen schema is [docs/json-schema.md](json-schema.md),
+which wins over this section where they differ.
 
 ```json
 {

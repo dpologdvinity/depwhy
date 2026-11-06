@@ -253,7 +253,9 @@ result.
 - **JSON** (`json.go`): a `Doc` with `schema`, `mode`, `query`, `results`,
   `warnings` and, only for a not-found run, `suggestions`. The `*JSON` structs are
   the wire format. Arrays are always built non-nil so they encode as `[]`, never
-  `null`. The schema is versioned because it becomes a stability promise at 1.0.
+  `null`. The schema is versioned and frozen: [docs/json-schema.md](docs/json-schema.md)
+  is the contract, and `internal/cli/schema_test.go` fails on any change to the set
+  of key paths (`testdata/json-keys.txt`).
 
 ## Installed sizes (`internal/size`)
 
@@ -367,6 +369,7 @@ version embedded by `go install pkg@version`, then falls back to `dev`.
 | `render` | Exact expected strings for the text output; decoded structure for JSON. |
 | `health` | Local `httptest` servers standing in for OSV and the registries: batching, caching and TTL, `--refresh`, 404s, timeouts, bad bodies, concurrency limit, warning aggregation. No test uses the internet. |
 | completion | Each script lists the flags; the bash, zsh (syntax only) and fish scripts run in the real shell when it is installed (CI installs all three on Linux; macOS runs bash 3.2), with the test binary standing in for `depwhy` via `TestMain`. A lockfile package named `$(touch PWNED)` must never run. |
+| JSON schema | `schema_test.go` gathers every key path from the JSON goldens plus not-found, `--online` and non-direct `--remove` runs, and compares the set with `testdata/json-keys.txt`. |
 | `cli` | **Golden tests.** `Run` is executed against every fixture project for ten argument lists; stdout, stderr and the exit code are compared with `testdata/golden/*.txt`. |
 | speed | A guard test builds a 3,000-node graph and fails if a query takes 200 ms or more. It is skipped under `-short` and `-race`. |
 

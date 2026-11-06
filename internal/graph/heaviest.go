@@ -63,7 +63,7 @@ func (g *Graph) Heaviest(opts HeaviestOpts) []HeaviestItem {
 		if ni.Name != nj.Name {
 			return ni.Name < nj.Name
 		}
-		return ni.Version < nj.Version
+		return compareVersions(ni.Version, nj.Version) < 0
 	})
 
 	if opts.Limit > 0 && len(items) > opts.Limit {

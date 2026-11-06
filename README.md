@@ -283,7 +283,7 @@ depwhy -r --dupes --across --json
 `--across` groups packages within each ecosystem and includes conflicts within
 individual files. It does not enable recursion itself. Its JSON adds
 `"across": true`; each package version lists sources with `lockfile`, `version`,
-`roots` and `direct_deps`. See [the full schema](docs/SPEC.md#153-across-json-schema).
+`roots` and `direct_deps`. See [the full schema](docs/json-schema.md#across-results).
 
 ## Limitations
 
@@ -330,9 +330,9 @@ not-found run adds `suggestions`. For example, `depwhy --json c`:
 }
 ```
 
-The full schema, including `--remove` and `--dupes`, is in [docs/SPEC.md](docs/SPEC.md) §7.3;
-the size fields (`size_bytes`, `freed_size_bytes`, `freed_unmeasured`) are in §13.5.
-The schema becomes a stability promise at 1.0.
+The complete schema for every mode is [docs/json-schema.md](docs/json-schema.md).
+From 1.0 it is a stability promise: new keys may appear, but anything that would
+break a script bumps `schema`.
 
 ## How it works
 
@@ -354,7 +354,8 @@ lockfile ──parse──▶ graph ──query──▶ result ──render─�
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How depwhy is built: packages, the graph model, algorithms, testing, CI. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Local workflow, checks, commit and PR conventions. |
-| [docs/SPEC.md](docs/SPEC.md) | The behavior contract (v0.1, plus online mode in §12). |
+| [docs/SPEC.md](docs/SPEC.md) | The behavior contract, section by version (v0.1 core, then §12 online, §13 sizes, §14 formats, §15 monorepos, §16 completion). |
+| [docs/json-schema.md](docs/json-schema.md) | The frozen `--json` output contract (schema 1). |
 | [docs/PLAN.md](docs/PLAN.md) | The implementation plans for v0.1 and v0.2. |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What comes next. |
 
