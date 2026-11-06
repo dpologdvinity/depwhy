@@ -70,7 +70,7 @@ func DupesAcross(graphs []*Graph, prod bool) []AcrossDupe {
 			d.Versions = append(d.Versions, AcrossVersion{Version: version, Sources: sources})
 		}
 		d.Lockfiles = len(files)
-		sort.Slice(d.Versions, func(i, j int) bool { return d.Versions[i].Version < d.Versions[j].Version })
+		sort.Slice(d.Versions, func(i, j int) bool { return compareVersions(d.Versions[i].Version, d.Versions[j].Version) < 0 })
 		out = append(out, d)
 	}
 	sort.Slice(out, func(i, j int) bool {

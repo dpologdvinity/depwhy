@@ -207,7 +207,8 @@ dependencies are not "kept" for the package that happens to link to it.
 
 Group non-root nodes by name, keep groups with two or more versions, and attach
 the leads for each version. Groups sort by version count (descending) then name.
-Versions sort as plain strings, which is what the spec asks for.
+Versions sort with `compareVersions` (`version.go`), shared by every version sort in
+`internal/graph` (SPEC §6.5).
 
 `DupesAcross` (`across.go`) groups all non-root nodes across graphs by ecosystem,
 exact name and version, honoring `--prod`. Each version keeps one source per
@@ -447,6 +448,8 @@ Dependabot keeps Go modules and the pinned Actions up to date.
   as roots (SPEC §8.4).
 - Platform markers (`uv.lock`) are ignored, so every edge counts on every platform.
 - Workspace members cannot be queried by name; only packages are matched.
-- Versions are compared as strings, not semantic versions.
+- Version ordering is a pragmatic total order, not a full semver or PEP 440
+  implementation: PEP 440 implicit post releases (`1.0-1`) sort as pre-releases and
+  spellings such as `alpha` and `a` are not normalized.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what is planned next.

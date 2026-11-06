@@ -203,7 +203,7 @@ Display names always come from the lockfile, unchanged.
 
 The query may match several nodes (one per version, and one per ecosystem). Run Why
 for each matched node and print them in order: ecosystem order (§4), then version
-ascending by plain string comparison of `Version`.
+ascending by the version order of §6.5.
 
 For a single target `t`, build the reverse tree:
 - The tree root is `t`. The children of a node `n` are the `From` ends of `In[n]`, sorted by `(Root first, Name, Version)`.
@@ -229,7 +229,7 @@ For a single target `t`, build the reverse tree:
 
 - Group non-root nodes by `Name` (the lockfile name, not the normalized one). Keep groups with two or more versions.
 - For each version, `Leads` = the direct dependencies that reach it (as in §6.1 Leads).
-- Sort groups by `(count of versions desc, Name asc)`, and sort versions ascending.
+- Sort groups by `(count of versions desc, Name asc)`, and sort versions ascending (§6.5).
 
 ### 6.4 Not-found suggestions
 
@@ -240,6 +240,24 @@ the normalized query, across all loaded graphs. Print up to 3, sorted by
 depwhy: lodahs not found in package-lock.json, uv.lock
 did you mean: lodash, lodash.get
 ```
+
+### 6.5 Version order
+
+Every place that orders versions (§6.1 to §6.3, §15.2) uses one comparator, a total
+order that returns equal only for identical strings. Keys, in order:
+
+1. PEP 440 epoch `N!` (absent is 0). A leading `v` (Go) is ignored.
+2. Release: the leading dot-separated numbers, compared numerically, with missing
+   segments as 0 (`9.0.0` < `10.0.0`; `1.0` ties `1.0.0`).
+3. Suffix after the release, up to `+`, with a leading `-`, `.` or `_` dropped:
+   `dev…` < any other suffix (semver or PEP 440 pre-release, Go pseudo-version) <
+   no suffix < `post…`. Equal ranks compare naturally: digit runs by value and before
+   letters, other runs bytewise (`alpha.2` < `alpha.10`).
+4. Build metadata or local version after `+`, compared naturally; none first.
+5. The raw strings, bytewise.
+
+PEP 440 implicit post releases (`1.0-1`) sort as pre-releases, and spellings such as
+`alpha` and `a` are not normalized.
 
 ## 7. Output
 
@@ -739,7 +757,7 @@ With `--prod`, filter dev-only nodes and dev leads exactly as for local dupes.
 Orphans remain eligible and have no roots or direct dependencies.
 
 Sort packages by distinct version count descending, then name, then ecosystem.
-Sort versions by plain string comparison; sources by lockfile path. Each source
+Sort versions by the version order of §6.5; sources by lockfile path. Each source
 uses its own graph's existing lead traversal, preserving workspace roots and edge
 kinds. Count only lockfiles containing that package. Text format:
 
