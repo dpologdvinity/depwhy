@@ -79,6 +79,11 @@ func WhyText(w io.Writer, g *graph.Graph, r graph.WhyResult, s Style) {
 		}
 	}
 	fmt.Fprintln(w, s.Bold(fmt.Sprintf("%s  %s", hdr, source(g)))+s.suffixOnline(r.Target))
+	if len(r.Tree.Children) == 0 {
+		// Every reachable target has at least one root leaf, so this is an orphan.
+		fmt.Fprintln(w, "not reachable from any root (an orphaned lockfile entry)")
+		return
+	}
 	kids := append([]*graph.TreeNode(nil), r.Tree.Children...)
 	if r.MorePaths != "" {
 		kids = append(kids, &graph.TreeNode{Node: nodeMore, Marker: fmt.Sprintf("… %s more paths (use --all)", r.MorePaths)})

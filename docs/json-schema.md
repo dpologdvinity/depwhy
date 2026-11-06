@@ -109,6 +109,11 @@ the root and adds `"root": true`; its `version` may be `""` when the project
 declares none. Every later step adds `"kind"`, the kind of the edge that led to it.
 Steps never carry sizes or health fields.
 
+A package that is in the lockfile but reachable from no root (an orphaned entry)
+is still a result: `paths` and `leads` are empty and `direct` is false. Text mode
+prints `not reachable from any root (an orphaned lockfile entry)` under its
+heading, and the run exits 0. The lockfile's warnings also name it.
+
 ## Remove results (`"mode": "remove"`)
 
 One result per matching package, per lockfile.

@@ -303,6 +303,10 @@ pulled in by 2 direct dependencies: a (prod), b (dev)
 - Tree drawing uses `├── `, `└── `, `│   `, and `    `.
 - Root leaf: `<label> (root, <kind>)`, where kind is the `root → direct` edge kind in lowercase. If the target is itself direct, its children are only root leaves.
 - Footer: if the target is direct, `direct dependency of <root label> (<kind>)`. Otherwise, if there are two or more leads, `pulled in by N direct dependencies: x (kind), y (kind)`, with leads sorted by name. Otherwise, no footer.
+- A target reachable from no root (an orphaned lockfile entry) has no tree and no
+  footer: print `not reachable from any root (an orphaned lockfile entry)` under
+  its header. It was found, so the exit code stays 0. `--remove` on it says it is
+  not a direct dependency.
 - Print a blank line between trees.
 
 ### 7.2 Remove and Dupes (text)

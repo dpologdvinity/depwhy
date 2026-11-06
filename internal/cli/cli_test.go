@@ -316,6 +316,30 @@ func TestParserWarningsArePrefixedWithTheFile(t *testing.T) {
 	}
 }
 
+// TestOrphan checks a package that is in the lockfile but reachable from no
+// root: it is found (exit 0), and the text says why there is no tree.
+func TestOrphan(t *testing.T) {
+	dir := t.TempDir()
+	lock := `{"lockfileVersion":3,"packages":{"":{"dependencies":{"a":"*"}},"node_modules/a":{"version":"1.0.0"},"node_modules/o":{"version":"1.0.0"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(lock), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := run("-C", dir, "o")
+	want := "o@1.0.0  npm · package-lock.json\nnot reachable from any root (an orphaned lockfile entry)\n"
+	if code != 0 || out != want {
+		t.Fatalf("why: code=%d out=%q, want %q", code, out, want)
+	}
+	code, out, _ = run("-C", dir, "--remove", "o")
+	want = "o@1.0.0 is not a direct dependency.\nrun `depwhy o` for details.\n"
+	if code != 0 || out != want {
+		t.Fatalf("remove: code=%d out=%q, want %q", code, out, want)
+	}
+	code, out, _ = run("-C", dir, "--json", "o")
+	if code != 0 || !strings.Contains(out, `"paths": []`) || !strings.Contains(out, `"leads": []`) {
+		t.Fatalf("json: code=%d out=%s", code, out)
+	}
+}
+
 // TestNotFoundSuggests checks exit 1, the message, and the did-you-mean line.
 func TestNotFoundSuggests(t *testing.T) {
 	code, out, errs := run("-C", project("npm"), "cc")
