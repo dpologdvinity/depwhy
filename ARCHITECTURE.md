@@ -130,7 +130,7 @@ The strings are warnings. They never fail a run.
 |---|---|---|
 | `package-lock.json` v1/v2/v3 | `""` and workspace directories | Node's lookup rule over the flat `packages` map, following `link` entries |
 | `pnpm-lock.yaml` v9 | each importer | `snapshots` keys, with peer suffixes stripped; `link:`, `file:` and alias refs handled |
-| `yarn.lock` Berry / Classic | workspace entries or `package.json` | Berry YAML descriptors or Classic line-oriented blocks with descriptor map |
+| `yarn.lock` Berry / Classic | `workspace:` entries (Berry) or `package.json` and its `workspaces` globs (Classic) | exact `name@range` descriptor, else by name; names from `resolution`, so aliases and `patch:` entries merge with their package; dev kinds from each workspace's `package.json` |
 | `bun.lock` v1 | `""` and workspaces | JSONC workspaces map and packages dictionary |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
 | `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables, categorized by `category` and dependencies |

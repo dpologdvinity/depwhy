@@ -620,13 +620,16 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
 
 #### 14.2.1 Yarn `yarn.lock`
 - **Berry (v2+)**: YAML format containing top-level `__metadata`.
-  - Keys are comma-separated descriptor lists (e.g. `"pkg@npm:^1.0.0, pkg@npm:^1.0.1"`).
-  - Values contain `version`, `resolution`, and `dependencies`.
-  - Root: entry matching `"."` or root workspace descriptors.
+  - Keys are comma-separated descriptor lists (e.g. `"pkg@npm:^1.0.0, pkg@npm:^1.0.1"`). A descriptor splits into name and range at the first `@` after index 0.
+  - Values contain `version`, `resolution`, `dependencies`, `dependenciesMeta` (`optional: true` makes an Optional edge) and `peerDependencies`.
+  - Node names come from `resolution`, so an `npm:` alias is the package it names, and a `patch:` entry (user patches and Yarn's builtin compat patches) shares the node of its `npm:` base.
+  - Roots: every entry whose resolution uses `workspace:`. The workspace's `package.json` (at the `workspace:` path) supplies its version and tells devDependencies apart, since the lockfile merges them into `dependencies`.
+  - A dependency resolves to the entry holding the descriptor `name@range`; failing that (e.g. a `resolutions` override), to the entries registered under `name`, the first in sorted key order, with a warning when there are several.
+  - A peer dependency resolves to what the package's parents resolved that name to.
 - **Classic (v1)**: Line-oriented custom format starting with `# yarn lockfile v1`.
   - Blocks begin with quoted descriptor lines followed by indented properties.
-  - Parse `version` string and `dependencies` mapping.
-  - Root: synthetic root created from project manifest or direct entries.
+  - Parse `version` string and the `dependencies` and `optionalDependencies` mappings.
+  - Root: synthetic root created from project manifest or direct entries, plus one root per workspace member matched by the manifest's `workspaces` globs (list or `{"packages": [...]}`). Members have no lockfile entry, so a dependency on a member resolves by name.
 
 #### 14.2.2 Bun `bun.lock`
 - Bun 1.2+ JSONC lockfile format.

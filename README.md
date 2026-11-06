@@ -252,6 +252,7 @@ individual files. It does not enable recursion itself. Its JSON adds
 - **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.
+- **Yarn**: dev dependencies of a project or workspace come from its `package.json`, because Yarn Berry lists them with the regular ones in `yarn.lock`; without the `package.json` they show as `prod`. A `patch:` package (including Yarn's builtin typescript/fsevents/resolve patches) is the same node as the package it patches. Classic workspace globs are expanded with Go's `filepath.Glob` (no `**` or `!`).
 - Advisory and deprecation data is only as complete as OSV and the public registries; `--online` does not read private registries.
 
 ## JSON output
