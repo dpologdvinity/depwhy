@@ -239,10 +239,11 @@ type session struct {
 }
 
 // warn prints a warning to stderr and keeps it for the JSON document. Warnings
-// never change the exit code.
+// never change the exit code. Warnings often quote the lockfile, so the
+// terminal copy is escaped; JSON keeps the exact text.
 func (s *session) warn(msg string) {
 	s.warnings = append(s.warnings, msg)
-	fmt.Fprintf(s.stderr, "depwhy: warning: %s\n", msg)
+	fmt.Fprintf(s.stderr, "depwhy: warning: %s\n", render.Escape(msg))
 }
 
 // execute runs a validated invocation: it finds and loads the lockfiles, then
@@ -252,7 +253,8 @@ func (s *session) warn(msg string) {
 func execute(o *options, stdout, stderr io.Writer) int {
 	s := &session{o: o, stdout: stdout, stderr: stderr}
 	fail := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "depwhy: "+format+"\n", a...)
+		// Parse errors may quote the lockfile, so escape them for the terminal.
+		fmt.Fprintf(stderr, "depwhy: %s\n", render.Escape(fmt.Sprintf(format, a...)))
 		return 2
 	}
 
@@ -570,13 +572,14 @@ func (s *session) notFound(doc *render.Doc, name string, devOnly bool) int {
 	case len(installed) > 0:
 		msg += " (installed: " + strings.Join(installed, ", ") + ")"
 	}
-	fmt.Fprintf(s.stderr, "depwhy: %s\n", msg)
+	// The query, labels and names may hold control characters: escape the lines.
+	fmt.Fprintf(s.stderr, "depwhy: %s\n", render.Escape(msg))
 	sugg := []string{}
 	if len(installed) == 0 {
 		sugg = graph.Suggest(s.graphs, name)
 	}
 	if len(sugg) > 0 {
-		fmt.Fprintf(s.stderr, "did you mean: %s\n", strings.Join(sugg, ", "))
+		fmt.Fprintf(s.stderr, "did you mean: %s\n", render.Escape(strings.Join(sugg, ", ")))
 	}
 	if s.o.json {
 		doc.SetSuggestions(sugg)

@@ -380,6 +380,14 @@ Use ANSI color only when stdout is a terminal (`fi.Mode()&os.ModeCharDevice != 0
 root labels cyan, `(dev)`/`dev` kinds dim, markers `(*)`/`(cycle)` dim. Golden tests
 run with color off.
 
+### 7.5 Untrusted text
+
+A lockfile may be hostile, so text output never prints its strings raw. Package
+names, versions, root and lockfile labels, warnings and the not-found lines on
+stderr show every non-printable rune (escape sequences, CR, BEL, DEL, C1 controls,
+invisible formatting such as bidirectional overrides) as its Go escape, e.g. `\x1b`
+or `\u202e`. JSON carries the exact strings; `encoding/json` escapes them.
+
 ## 8. Lockfile parsing (package `internal/lockfile`)
 
 Each parser has the signature `func ParseX(path string, data []byte) (*graph.Graph, []string /*warnings*/, error)`.

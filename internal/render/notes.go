@@ -1,6 +1,7 @@
 package render
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -73,6 +74,31 @@ func printable(s string) string {
 		return r
 	}, s)
 }
+
+// Escape makes lockfile-derived text (package names, versions, lockfile labels,
+// warnings) safe for a terminal: every rune that is not printable (escape
+// sequences, CR, BEL, DEL, invisible formatting such as bidirectional overrides)
+// is shown as its Go escape, e.g. \x1b or \u202e. Unlike printable, it keeps
+// the characters visible, so a hostile lockfile cannot hide what it contains.
+// JSON output does not need it: encoding/json escapes on its own.
+func Escape(s string) string {
+	if strings.IndexFunc(s, notPrint) < 0 {
+		return s
+	}
+	var sb strings.Builder
+	for _, r := range s {
+		if notPrint(r) {
+			q := strconv.QuoteRune(r)
+			sb.WriteString(q[1 : len(q)-1]) // drop the quotes around 'x'
+			continue
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+// notPrint reports whether r must be escaped by Escape.
+func notPrint(r rune) bool { return !unicode.IsPrint(r) }
 
 // tidy makes a deprecation message safe for one line of terminal output: it
 // drops non-printable characters, collapses whitespace runs (including

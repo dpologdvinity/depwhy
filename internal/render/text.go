@@ -20,17 +20,21 @@ const (
 	nodeMore     = -2
 )
 
-// pkgID formats a node as name@version, or just the name when it has no version.
+// pkgID formats a node as name@version, or just the name when it has no
+// version, escaped for the terminal. It is for text output only.
 func pkgID(g *graph.Graph, n int) string {
 	if v := g.Nodes[n].Version; v != "" {
-		return g.Nodes[n].Name + "@" + v
+		return Escape(g.Nodes[n].Name + "@" + v)
 	}
-	return g.Nodes[n].Name
+	return name(g, n)
 }
+
+// name returns a node's name escaped for the terminal, for text output.
+func name(g *graph.Graph, n int) string { return Escape(g.Nodes[n].Name) }
 
 // source formats the "ecosystem · lockfile" suffix shown on headings.
 func source(g *graph.Graph) string {
-	return g.Ecosystem + " · " + lockfileName(g)
+	return g.Ecosystem + " · " + Escape(lockfileName(g))
 }
 
 // lockfileName preserves relative labels selected by recursive/across discovery.
@@ -55,7 +59,7 @@ func leadText(g *graph.Graph, leads []graph.Lead, s Style, label func(graph.Lead
 	sort.SliceStable(ls, func(i, j int) bool { return g.Nodes[label(ls[i])].Name < g.Nodes[label(ls[j])].Name })
 	parts := make([]string, len(ls))
 	for i, l := range ls {
-		parts[i] = fmt.Sprintf("%s (%s)", g.Nodes[label(l)].Name, s.kind(l.Kind))
+		parts[i] = fmt.Sprintf("%s (%s)", name(g, label(l)), s.kind(l.Kind))
 	}
 	return strings.Join(parts, ", ")
 }
@@ -116,7 +120,7 @@ func treeLabel(g *graph.Graph, k *graph.TreeNode, s Style) string {
 	case k.Node == nodeMore:
 		return k.Marker
 	case g.Nodes[k.Node].Root:
-		return fmt.Sprintf("%s (root, %s)", s.Cyan(g.Nodes[k.Node].Name), s.kind(k.Kind))
+		return fmt.Sprintf("%s (root, %s)", s.Cyan(name(g, k.Node)), s.kind(k.Kind))
 	case k.Marker != "":
 		return pkgID(g, k.Node) + s.suffix(k.Node) + " " + s.Dim(k.Marker)
 	}
@@ -132,14 +136,14 @@ func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style) {
 		}
 		if len(r.RequiredBy) == 0 {
 			fmt.Fprintf(w, "%s is not a direct dependency.\n", t)
-			fmt.Fprintf(w, "run `depwhy %s` for details.\n", g.Nodes[r.Target].Name)
+			fmt.Fprintf(w, "run `depwhy %s` for details.\n", name(g, r.Target))
 			return
 		}
 		fmt.Fprintf(w, "%s is not a direct dependency. it is required by: %s\n", t, leadText(g, r.RequiredBy, s, directOf))
-		fmt.Fprintf(w, "remove those instead, or run `depwhy %s` for details.\n", g.Nodes[r.Target].Name)
+		fmt.Fprintf(w, "remove those instead, or run `depwhy %s` for details.\n", name(g, r.Target))
 		return
 	}
-	fmt.Fprintln(w, s.Bold(fmt.Sprintf("removing %s (direct, %s) from %s  %s", t, s.kind(r.Kind), g.Nodes[r.Root].Name, source(g))))
+	fmt.Fprintln(w, s.Bold(fmt.Sprintf("removing %s (direct, %s) from %s  %s", t, s.kind(r.Kind), name(g, r.Root), source(g))))
 	if len(r.Freed) == 0 {
 		fmt.Fprintln(w, "would remove 0 packages")
 	} else if r.FreedSize != nil {
@@ -176,9 +180,9 @@ func DupesText(w io.Writer, g *graph.Graph, ds []graph.Dupe, s Style) {
 		return
 	}
 	for _, d := range ds {
-		fmt.Fprintf(w, "%s  %s\n", d.Name, plural(len(d.Versions), "version"))
+		fmt.Fprintf(w, "%s  %s\n", Escape(d.Name), plural(len(d.Versions), "version"))
 		for _, v := range d.Versions {
-			fmt.Fprintf(w, "  %s%s  via %s\n", g.Nodes[v.Node].Version, s.suffix(v.Node), leadText(g, v.Leads, s, directOf))
+			fmt.Fprintf(w, "  %s%s  via %s\n", Escape(g.Nodes[v.Node].Version), s.suffix(v.Node), leadText(g, v.Leads, s, directOf))
 		}
 	}
 }
