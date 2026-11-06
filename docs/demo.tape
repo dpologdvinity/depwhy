@@ -22,7 +22,7 @@ Sleep 4s
 
 Type "clear"
 Enter
-Type "depwhy --remove mocha | head -12"
+Type "depwhy --remove vitest | head -12"
 Sleep 400ms
 Enter
 Sleep 4s
