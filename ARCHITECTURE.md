@@ -131,9 +131,9 @@ The strings are warnings. They never fail a run.
 | `package-lock.json` v1/v2/v3 | `""` and workspace directories | Node's lookup rule over the flat `packages` map, following `link` entries |
 | `pnpm-lock.yaml` v9 | each importer | `snapshots` keys, with peer suffixes stripped; `link:`, `file:` and alias refs handled |
 | `yarn.lock` Berry / Classic | `workspace:` entries (Berry) or `package.json` and its `workspaces` globs (Classic) | exact `name@range` descriptor, else by name; names from `resolution`, so aliases and `patch:` entries merge with their package; dev kinds from each workspace's `package.json` |
-| `bun.lock` v1 | `""` and workspaces | JSONC workspaces map and packages dictionary |
+| `bun.lock` (text, Bun 1.2+) | `""` and workspace directories | `packages` keys are install paths (`parent/child`); a name resolves to the nearest key, walking up to the top level |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
-| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables, categorized by `category` and dependencies |
+| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups and extras, else the lockfile's `groups` or `category` |
 | `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
 | `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` |
 
@@ -207,7 +207,8 @@ dependencies are not "kept" for the package that happens to link to it.
 
 Group non-root nodes by name, keep groups with two or more versions, and attach
 the leads for each version. Groups sort by version count (descending) then name.
-Versions sort as plain strings, which is what the spec asks for.
+Versions sort with `compareVersions` (`version.go`), shared by every version sort in
+`internal/graph` (SPEC §6.5).
 
 `DupesAcross` (`across.go`) groups all non-root nodes across graphs by ecosystem,
 exact name and version, honoring `--prod`. Each version keeps one source per
@@ -311,6 +312,15 @@ Across JSON adds a top-level `across: true` and one result per package, with
 per-version source arrays containing relative lockfile paths, roots and direct
 dependency leads. Non-across JSON keeps its existing structure. See SPEC §15.
 
+**Shell completion** (`completion.go`, SPEC §16). `depwhy completion <shell>`
+writes a bash, zsh or fish script whose flag list is generated from the pflag
+`FlagSet`, so it cannot drift from the real flags. For package names the scripts
+call the hidden `--complete-packages` flag with the words typed so far: `Run`
+then skips mode validation, switches off `--online`, `--go-graph` and
+`--cargo-metadata`, loads the selected lockfiles as usual and prints the unique
+non-root names. Names are lockfile data and therefore untrusted; the scripts add
+them as literal completions and never let the shell evaluate them.
+
 The reported version comes from `-ldflags` in release builds, then from the module
 version embedded by `go install pkg@version`, then falls back to `dev`.
 
@@ -322,6 +332,7 @@ version embedded by `go install pkg@version`, then falls back to `dev`.
 | `lockfile` | One test file per format, using the fixtures plus inline data for edge cases. |
 | `render` | Exact expected strings for the text output; decoded structure for JSON. |
 | `health` | Local `httptest` servers standing in for OSV and the registries: batching, caching and TTL, `--refresh`, 404s, timeouts, bad bodies, concurrency limit, warning aggregation. No test uses the internet. |
+| completion | Each script lists the flags; the bash, zsh (syntax only) and fish scripts run in the real shell when it is installed (CI installs all three on Linux; macOS runs bash 3.2), with the test binary standing in for `depwhy` via `TestMain`. A lockfile package named `$(touch PWNED)` must never run. |
 | `cli` | **Golden tests.** `Run` is executed against every fixture project for ten argument lists; stdout, stderr and the exit code are compared with `testdata/golden/*.txt`. |
 | speed | A guard test builds a 3,000-node graph and fails if a query takes 200 ms or more. It is skipped under `-short` and `-race`. |
 
@@ -447,6 +458,8 @@ Dependabot keeps Go modules and the pinned Actions up to date.
   as roots (SPEC §8.4).
 - Platform markers (`uv.lock`) are ignored, so every edge counts on every platform.
 - Workspace members cannot be queried by name; only packages are matched.
-- Versions are compared as strings, not semantic versions.
+- Version ordering is a pragmatic total order, not a full semver or PEP 440
+  implementation: PEP 440 implicit post releases (`1.0-1`) sort as pre-releases and
+  spellings such as `alpha` and `a` are not normalized.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what is planned next.

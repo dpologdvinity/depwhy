@@ -1,40 +1,59 @@
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 2,
+  "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "app",
-      "version": "1.0.0",
+      "name": "root",
       "dependencies": {
-        "a": "^1.0.0"
+        "al": "npm:c@1.0.0",
+        "c": "^2.0.0",
+        "f": "^1.0.0",
+        "lib": "workspace:*",
+        "localdep": "file:./localdep",
+        "tb": "http://127.0.0.1:4873/a/-/a-1.0.0.tgz",
       },
-      "devDependencies": {
-        "b": "^1.0.0"
-      }
-    }
+      "optionalDependencies": {
+        "g": "^1.0.0",
+      },
+      "peerDependencies": {
+        "d": "^1.0.0",
+      },
+    },
+    "packages/lib": {
+      "name": "lib",
+      "version": "2.0.0",
+      "dependencies": {
+        "@s/e": "^1.0.0",
+        "c": "^1.0.0",
+      },
+      "peerDependencies": {
+        "d": "^1.0.0",
+      },
+    },
   },
   "packages": {
-    "a@1.0.0": {
-      "name": "a",
-      "version": "1.0.0",
-      "dependencies": {
-        "c": "c@1.0.0",
-        "d": "d@1.0.0"
-      }
-    },
-    "b@1.0.0": {
-      "name": "b",
-      "version": "1.0.0",
-      "dependencies": {
-        "d": "d@1.0.0"
-      }
-    },
-    "c@1.0.0": {
-      "name": "c",
-      "version": "1.0.0"
-    },
-    "d@1.0.0": {
-      "name": "d",
-      "version": "1.0.0"
-    }
+    "@s/e": ["@s/e@1.0.0", "http://127.0.0.1:4873/@s/e/-/e-1.0.0.tgz", { "dependencies": { "c": "^1.0.0" } }, "sha512-y92WuOet4mrhlRdB7VfChb6G2Ymbhcza0ntVSu8itTdZlgum69LvkXSf65SPCHXTcd/UbJtDn364foCfCKyjSw=="],
+
+    "al": ["c@1.0.0", "http://127.0.0.1:4873/c/-/c-1.0.0.tgz", {}, "sha512-8lpUz/Ffw6oYj8rmw7+xK9SWqQvO0ipNjMAr9HFc+zNynDa9OesFJuYA8BSn2V1iwsY2GhBty7MoC9ZiZbJYdA=="],
+
+    "c": ["c@2.0.0", "http://127.0.0.1:4873/c/-/c-2.0.0.tgz", {}, "sha512-UUIf+3OxdxV+zbHrqlhqU1kSTJE7O8T9q+pUQw3C8euoSO8Sz2QfWWT4XwhZjZW7ddxEELqB6mNpkh28R5gvLA=="],
+
+    "d": ["d@1.0.0", "http://127.0.0.1:4873/d/-/d-1.0.0.tgz", {}, "sha512-2iYjwvrCfDHMz5a6+thF/9o1jMG1Ac4vpPpKa3kHWu2rubbSoqXYZMsA45jv1KlZ6glBjy8B17Gm4Tn4InXM4g=="],
+
+    "f": ["f@1.0.0", "http://127.0.0.1:4873/f/-/f-1.0.0.tgz", { "optionalDependencies": { "g": "^1.0.0" }, "peerDependencies": { "d": "^1.0.0" } }, "sha512-oieZxL8ZyMBzcYBu8gQEZ8lOEzSlE+FvVj7TzvsuceMshi3AVmdd5wjLuhGR+3c06WnJVglca/8klm8pGBBsZA=="],
+
+    "g": ["g@1.0.0", "http://127.0.0.1:4873/g/-/g-1.0.0.tgz", {}, "sha512-RiNsnU+PKOQqlkvQXhEuRix1zFN3fblIM4b/XUPb9TQsvk9DknofHonbZPkebYqvXte6IAFlcNx8CAOkZKa3dg=="],
+
+    "lib": ["lib@workspace:packages/lib"],
+
+    "localdep": ["localdep@file:localdep", { "dependencies": { "d": "^1.0.0" } }],
+
+    "tb": ["a@http://127.0.0.1:4873/a/-/a-1.0.0.tgz", { "dependencies": { "c": "^1.0.0", "d": "^1.0.0" } }, "sha512-W4V6c058TX8qH2ZLxn6WkCOSEXW7sRGWu7Eg3Fuj+1EGcyHO9MhOWpdimz15LMQSj/86s1DugOEc6EdD5fCpsg=="],
+
+    "@s/e/c": ["c@1.0.0", "http://127.0.0.1:4873/c/-/c-1.0.0.tgz", {}, "sha512-8lpUz/Ffw6oYj8rmw7+xK9SWqQvO0ipNjMAr9HFc+zNynDa9OesFJuYA8BSn2V1iwsY2GhBty7MoC9ZiZbJYdA=="],
+
+    "lib/c": ["c@1.0.0", "http://127.0.0.1:4873/c/-/c-1.0.0.tgz", {}, "sha512-8lpUz/Ffw6oYj8rmw7+xK9SWqQvO0ipNjMAr9HFc+zNynDa9OesFJuYA8BSn2V1iwsY2GhBty7MoC9ZiZbJYdA=="],
+
+    "tb/c": ["c@1.0.0", "http://127.0.0.1:4873/c/-/c-1.0.0.tgz", {}, "sha512-8lpUz/Ffw6oYj8rmw7+xK9SWqQvO0ipNjMAr9HFc+zNynDa9OesFJuYA8BSn2V1iwsY2GhBty7MoC9ZiZbJYdA=="],
   }
 }

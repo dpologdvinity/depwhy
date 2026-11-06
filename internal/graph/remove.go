@@ -106,7 +106,7 @@ func (g *Graph) sortNodes(ix []int) {
 		if na.Name != nb.Name {
 			return na.Name < nb.Name
 		}
-		return na.Version < nb.Version
+		return compareVersions(na.Version, nb.Version) < 0
 	})
 }
 

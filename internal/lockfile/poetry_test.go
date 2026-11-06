@@ -160,4 +160,125 @@ category = "dev"
 	if len(g.Roots) != 1 || g.Nodes[g.Roots[0]].Name != "pep621-app" {
 		t.Fatalf("roots = %v", g.Roots)
 	}
+	// PEP 621 extras are optional, not dev (Poetry has no dev concept there).
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{"requests": graph.Prod, "pytest": graph.Optional})
+}
+
+// rootKinds maps each direct dependency of the single root to its lowest edge kind.
+func rootKinds(t *testing.T, g *graph.Graph) map[string]graph.Kind {
+	t.Helper()
+	if len(g.Roots) != 1 {
+		t.Fatalf("roots = %v, want 1", g.Roots)
+	}
+	out := map[string]graph.Kind{}
+	for _, e := range g.Out[g.Roots[0]] {
+		if k, ok := out[g.Nodes[e.To].Name]; !ok || e.Kind < k {
+			out[g.Nodes[e.To].Name] = e.Kind
+		}
+	}
+	return out
+}
+
+func assertKinds(t *testing.T, got, want map[string]graph.Kind) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("root deps = %v, want %v", got, want)
+	}
+	for name, k := range want {
+		if got[name] != k {
+			t.Errorf("%s kind = %v, want %v", name, got[name], k)
+		}
+	}
+}
+
+// Real Poetry 2.x lockfile: PEP 621 deps and extras plus dev, lint and optional docs groups.
+func TestParsePoetryGroups(t *testing.T) {
+	want := map[string]graph.Kind{
+		"six": graph.Prod, "typing-extensions": graph.Optional,
+		"toml": graph.Dev, "idna": graph.Dev, "certifi": graph.Dev,
+	}
+	path := "../../testdata/edge/poetry-groups/poetry.lock"
+	g, warns, err := ParsePoetry(path, readFixture(t, path))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("ParsePoetry: err=%v warns=%v", err, warns)
+	}
+	assertKinds(t, rootKinds(t, g), want)
+
+	// Without pyproject.toml, the lockfile's per-package groups decide.
+	g, warns, err = ParsePoetry(filepath.Join(t.TempDir(), "poetry.lock"), readFixture(t, path))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("ParsePoetry without pyproject: err=%v warns=%v", err, warns)
+	}
+	assertKinds(t, rootKinds(t, g), want)
+}
+
+// Real Poetry 1.8 lockfile (no category or groups): only pyproject.toml classifies.
+func TestParsePoetryExtras(t *testing.T) {
+	path := "../../testdata/edge/poetry-extras/poetry.lock"
+	g, warns, err := ParsePoetry(path, readFixture(t, path))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("ParsePoetry: err=%v warns=%v", err, warns)
+	}
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{
+		"six": graph.Prod, "typing-extensions": graph.Optional, "toml": graph.Dev, "idna": graph.Dev,
+	})
+}
+
+func TestParsePoetryMainGroupAndLegacyOptional(t *testing.T) {
+	d := t.TempDir()
+	// Multiple-constraint dependencies come as an inline array or an array of tables.
+	pyproject := `
+[tool.poetry.dependencies]
+c = [{ version = "<2", python = "<3.10", optional = true }, { version = ">=2", python = ">=3.10", optional = true }]
+[[tool.poetry.dependencies.d]]
+version = "1.0"
+optional = true
+[tool.poetry.group.main.dependencies]
+a = "*"
+[tool.poetry.group.docs.dependencies]
+b = "*"
+`
+	lock := `
+[[package]]
+name = "a"
+version = "1.0"
+[[package]]
+name = "b"
+version = "1.0"
+[[package]]
+name = "c"
+version = "1.0"
+[[package]]
+name = "d"
+version = "1.0"
+`
+	if err := os.WriteFile(filepath.Join(d, "pyproject.toml"), []byte(pyproject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g, _, err := ParsePoetry(filepath.Join(d, "poetry.lock"), []byte(lock))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{
+		"a": graph.Prod, "b": graph.Dev, "c": graph.Optional, "d": graph.Optional,
+	})
+
+	// Legacy category lockfile without pyproject.toml: optional main packages are extras.
+	legacy := `
+[[package]]
+name = "x"
+version = "1.0"
+category = "main"
+optional = true
+[[package]]
+name = "y"
+version = "1.0"
+category = "dev"
+optional = false
+`
+	g, _, err = ParsePoetry(filepath.Join(t.TempDir(), "poetry.lock"), []byte(legacy))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{"x": graph.Optional, "y": graph.Dev})
 }

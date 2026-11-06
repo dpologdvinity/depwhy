@@ -66,8 +66,8 @@ errors (exit 2).
 | `-l`, `--lockfile` | string (repeatable) | none | Use these lockfile paths instead of auto-detection. The format comes from the file's base name (§4). |
 | `-e`, `--ecosystem` | string | all | Restrict to `npm`, `python`, or `cargo`. |
 | `--prod` | bool | false | Ignore dev edges from roots (and so everything reachable only through them). |
-| `-d`, `--depth` | int | 0 (unlimited) | Max levels printed in the why tree (target = level 0). |
-| `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). |
+| `-d`, `--depth` | int | 0 (unlimited) | Max levels printed in the why tree (target = level 0). Why mode only. |
+| `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). Why mode only. |
 | `--json` | bool | false | Emit JSON (§7.3) instead of text. |
 | `--no-color` | bool | false | Disable ANSI color. |
 | `--online` | bool | false | v0.2: look up advisories and deprecated/yanked status (§12). |
@@ -75,7 +75,9 @@ errors (exit 2).
 | `-V`, `--version` | bool | false | Print `depwhy <version>` and exit 0. |
 | `-h`, `--help` | bool | false | Print usage and exit 0. |
 
-`--remove` and `--dupes` together is a usage error.
+`--remove`, `--dupes` and `--heaviest` are mutually exclusive. `--depth` and `--all`
+shape the why tree, so combining them with another mode is a usage error rather
+than being silently ignored.
 
 ### 3.2 Package argument
 
@@ -203,7 +205,7 @@ Display names always come from the lockfile, unchanged.
 
 The query may match several nodes (one per version, and one per ecosystem). Run Why
 for each matched node and print them in order: ecosystem order (§4), then version
-ascending by plain string comparison of `Version`.
+ascending by the version order of §6.5.
 
 For a single target `t`, build the reverse tree:
 - The tree root is `t`. The children of a node `n` are the `From` ends of `In[n]`, sorted by `(Root first, Name, Version)`.
@@ -229,7 +231,7 @@ For a single target `t`, build the reverse tree:
 
 - Group non-root nodes by `Name` (the lockfile name, not the normalized one). Keep groups with two or more versions.
 - For each version, `Leads` = the direct dependencies that reach it (as in §6.1 Leads).
-- Sort groups by `(count of versions desc, Name asc)`, and sort versions ascending.
+- Sort groups by `(count of versions desc, Name asc)`, and sort versions ascending (§6.5).
 
 ### 6.4 Not-found suggestions
 
@@ -240,6 +242,24 @@ the normalized query, across all loaded graphs. Print up to 3, sorted by
 depwhy: lodahs not found in package-lock.json, uv.lock
 did you mean: lodash, lodash.get
 ```
+
+### 6.5 Version order
+
+Every place that orders versions (§6.1 to §6.3, §15.2) uses one comparator, a total
+order that returns equal only for identical strings. Keys, in order:
+
+1. PEP 440 epoch `N!` (absent is 0). A leading `v` (Go) is ignored.
+2. Release: the leading dot-separated numbers, compared numerically, with missing
+   segments as 0 (`9.0.0` < `10.0.0`; `1.0` ties `1.0.0`).
+3. Suffix after the release, up to `+`, with a leading `-`, `.` or `_` dropped:
+   `dev…` < any other suffix (semver or PEP 440 pre-release, Go pseudo-version) <
+   no suffix < `post…`. Equal ranks compare naturally: digit runs by value and before
+   letters, other runs bytewise (`alpha.2` < `alpha.10`).
+4. Build metadata or local version after `+`, compared naturally; none first.
+5. The raw strings, bytewise.
+
+PEP 440 implicit post releases (`1.0-1`) sort as pre-releases, and spellings such as
+`alpha` and `a` are not normalized.
 
 ## 7. Output
 
@@ -568,7 +588,7 @@ directories present on disk, behavior is identical to v0.2.
 ### 13.2 Flags
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
-| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. |
+| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
 | `--venv` | string | `""` | Path to Python virtualenv (default `.venv` in target directory). |
 
 ### 13.3 Measurement rules
@@ -632,14 +652,23 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
   - Root: synthetic root created from project manifest or direct entries, plus one root per workspace member matched by the manifest's `workspaces` globs (list or `{"packages": [...]}`). Members have no lockfile entry, so a dependency on a member resolves by name.
 
 #### 14.2.2 Bun `bun.lock`
-- Bun 1.2+ JSONC lockfile format.
-- Top-level `lockfileVersion`, `packages` dictionary, and `workspaces`.
-- Root: `""` or workspace member directories.
-- Package entries declare name, version, and dependency edges.
+- Bun 1.2+ text lockfile: JSONC, so `//` and `/* */` comments and trailing commas are removed (outside strings) before decoding.
+- Top-level `workspaces` map and `packages` dictionary.
+- Root: `""` (the project) and each workspace member directory. A member's own `packages` entry is `["name@workspace:<dir>"]` and maps to its root.
+- Each `packages` value is an array. Element 0 is `name@version`, split at the first `@` after index 0 (scoped names, npm aliases give the real name). The first object after it holds `dependencies`, `optionalDependencies` and `peerDependencies` (index 2 for registry packages, 1 for tarball, `file:` and git ones).
+- `packages` keys are install paths (`parent/child` for a nested copy). A dependency resolves to the nearest key: `from/name`, then dropping one package from the path at a time, then the top-level `name`.
+- Edge kinds follow `package-lock.json`: only roots have Dev edges; unresolvable Prod/Dev dependencies warn, Optional/Peer ones are skipped.
 
 #### 14.2.3 Poetry `poetry.lock`
 - TOML format with `[[package]]` tables.
-- Fields: `name`, `version`, `category` (`main` -> Prod, `dev` -> Dev), and `dependencies` table.
+- Fields: `name`, `version`, `optional`, `groups` (Poetry >= 2.0), `category` (Poetry < 1.5), and `dependencies` table (a dependency table with `optional = true` is an Optional edge).
+- Direct dependencies come from `pyproject.toml`. Only the `main` group is production:
+  `[tool.poetry.dependencies]`, `[tool.poetry.group.main.dependencies]` and `[project].dependencies` -> Prod;
+  `[tool.poetry.group.<name>.dependencies]` for any other group and legacy `[tool.poetry.dev-dependencies]` -> Dev;
+  `[project.optional-dependencies]` and Poetry dependencies with `optional = true` (extras) -> Optional.
+- Without `pyproject.toml` (or with no declared dependencies), packages that nothing depends on become direct.
+  Their kind comes from `groups` (contains `main` -> Prod, else Dev), else `category` (`dev` -> Dev, else Prod);
+  a production package with `optional = true` is Optional. Poetry 1.5-1.8 lockfiles record neither field, so all are Prod.
 - Root: package defined by `pyproject.toml` in same directory, or directory name fallback.
 
 #### 14.2.4 Go `go.mod`
@@ -735,7 +764,7 @@ With `--prod`, filter dev-only nodes and dev leads exactly as for local dupes.
 Orphans remain eligible and have no roots or direct dependencies.
 
 Sort packages by distinct version count descending, then name, then ecosystem.
-Sort versions by plain string comparison; sources by lockfile path. Each source
+Sort versions by the version order of §6.5; sources by lockfile path. Each source
 uses its own graph's existing lead traversal, preserving workspace roots and edge
 kinds. Count only lockfiles containing that package. Text format:
 
@@ -814,3 +843,33 @@ and `yanked` fields. A clean empty run has `"results": []`.
 - Mixed monorepo fixture and deterministic text/JSON golden tests.
 - Documentation and CLI help cover the new flags.
 - Formatting, vet, lint and race tests pass; total statement coverage ≥ 90%.
+
+## 16. Shell completion (v1.0)
+
+`depwhy completion bash|zsh|fish` prints a completion script to stdout and exits 0.
+Any other shell name is a usage error (exit 2). The command is recognized only as
+exactly two positional words, `completion <shell>`, which is otherwise a usage
+error, so a lone `depwhy completion` is still a query for a package named
+`completion`.
+
+The scripts complete:
+- flags, generated from the flag set, so a new flag needs no script change;
+- values: directories for `-C` and `--venv`, files for `-l`, `npm python cargo go`
+  for `-e`, nothing for `--depth`;
+- package names everywhere else.
+
+Package names come from the hidden flag `--complete-packages`. The script passes it
+every word typed before the cursor. It loads the lockfiles those words select
+(`-C`, `-l`, `-e`, `-r`), ignores the mode flags and positional arguments, and
+prints each non-root package name once, sorted, one per line. It never makes
+network requests and never runs `go` or `cargo` (`--online`, `--go-graph` and
+`--cargo-metadata` are ignored). Errors exit 2 like any run; the scripts discard
+stderr, so a directory without a lockfile simply completes nothing.
+
+Package names are untrusted input. The scripts must never evaluate them: bash
+reads them line by line (not through `compgen -W`, which expands its word list)
+and quotes each with `printf %q`; zsh adds them with `compadd`; fish takes them
+from a command substitution. A test runs each shell against a lockfile whose
+package name is `$(touch PWNED)`.
+
+The bash script works with bash 3.2 (the macOS default) and newer.

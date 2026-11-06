@@ -12,7 +12,7 @@ type DupeVersion struct {
 // Dupe is a package name installed at two or more versions.
 type Dupe struct {
 	Name     string
-	Versions []DupeVersion // ascending by version string
+	Versions []DupeVersion // ascending by compareVersions
 }
 
 // Dupes lists packages present at more than one version (SPEC §6.3), most
@@ -34,7 +34,7 @@ func (g *Graph) Dupes(prod bool) []Dupe {
 		if len(ix) < 2 {
 			continue
 		}
-		sort.Slice(ix, func(a, b int) bool { return g.Nodes[ix[a]].Version < g.Nodes[ix[b]].Version })
+		sort.Slice(ix, func(a, b int) bool { return compareVersions(g.Nodes[ix[a]].Version, g.Nodes[ix[b]].Version) < 0 })
 		d := Dupe{Name: name}
 		for _, i := range ix {
 			d.Versions = append(d.Versions, DupeVersion{Node: i, Leads: g.leads(i, prod)})

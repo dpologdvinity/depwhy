@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -40,6 +42,7 @@ const usage = `usage:
   depwhy [flags] --remove <package>       impact of removing a direct dependency
   depwhy [flags] --dupes                  packages installed at more than one version
   depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
+  depwhy completion bash|zsh|fish         print a shell completion script
   depwhy --version | --help
 
 flags:
@@ -64,6 +67,7 @@ type options struct {
 	venv                                    string   // v0.3: custom python virtualenv path
 	goGraph                                 bool     // v0.4: refine go mod graph (SPEC §14)
 	cargoMetadata                           bool     // v0.4: precise cargo metadata (SPEC §14)
+	completePackages                        bool     // hidden: list package names for shell completion
 	dir                                     string   // directory searched for lockfiles
 	lockfiles                               []string // explicit lockfile paths; disables detection
 	ecosystem                               string   // "", "npm", "python", "cargo", or "go"
@@ -71,10 +75,8 @@ type options struct {
 	query                                   string   // "name" or "name@version"
 }
 
-// Run executes depwhy and returns the process exit code.
-func Run(args []string, stdout, stderr io.Writer) int {
-	var o options
-	var version, help bool
+// newFlagSet defines depwhy's flags, storing their values in o, version and help.
+func newFlagSet(o *options, version, help *bool) *pflag.FlagSet {
 	fs := pflag.NewFlagSet("depwhy", pflag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&o.remove, "remove", false, "removal-impact mode; the argument is a direct dependency")
@@ -85,19 +87,29 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.StringArrayVarP(&o.lockfiles, "lockfile", "l", nil, "use this lockfile instead of auto-detection (repeatable)")
 	fs.StringVarP(&o.ecosystem, "ecosystem", "e", "", "restrict to npm, python, cargo, or go")
 	fs.BoolVar(&o.prod, "prod", false, "ignore dev dependencies")
-	fs.IntVarP(&o.depth, "depth", "d", 0, "max levels printed in the why tree (0 = unlimited)")
-	fs.BoolVar(&o.all, "all", false, "print all paths without the 10-path cap")
+	fs.IntVarP(&o.depth, "depth", "d", 0, "max levels printed in the why tree (0 = unlimited; why mode only)")
+	fs.BoolVar(&o.all, "all", false, "print all paths without the 10-path cap (why mode only)")
 	fs.BoolVar(&o.json, "json", false, "emit JSON")
 	fs.BoolVar(&o.noColor, "no-color", false, "disable ANSI color")
 	fs.BoolVar(&o.online, "online", false, "look up security advisories and deprecated/yanked status (uses the network)")
 	fs.BoolVar(&o.refresh, "refresh", false, "with --online, ignore cached answers")
-	fs.IntVar(&o.heaviest, "heaviest", 0, "rank direct dependencies by exclusive transitive size freed")
+	fs.IntVar(&o.heaviest, "heaviest", 0, "rank the N (default 10) direct dependencies freeing the most disk space")
 	fs.Lookup("heaviest").NoOptDefVal = "10"
 	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv in target directory)")
 	fs.BoolVar(&o.goGraph, "go-graph", false, "refine Go module transitive dependencies using go mod graph")
 	fs.BoolVar(&o.cargoMetadata, "cargo-metadata", false, "use cargo metadata for precise Cargo dependency discrimination")
-	fs.BoolVarP(&version, "version", "V", false, "print version and exit")
-	fs.BoolVarP(&help, "help", "h", false, "print usage and exit")
+	fs.BoolVarP(version, "version", "V", false, "print version and exit")
+	fs.BoolVarP(help, "help", "h", false, "print usage and exit")
+	fs.BoolVar(&o.completePackages, completeFlag, false, "list package names for shell completion")
+	_ = fs.MarkHidden(completeFlag) // cannot fail: the flag was just defined
+	return fs
+}
+
+// Run executes depwhy and returns the process exit code.
+func Run(args []string, stdout, stderr io.Writer) int {
+	var o options
+	var version, help bool
+	fs := newFlagSet(&o, &version, &help)
 
 	if err := fs.Parse(args); err != nil {
 		return usageErr(stderr, err.Error())
@@ -111,7 +123,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "depwhy %s\n", resolveVersion(Version, info))
 		return 0
 	}
-	if msg := validate(&o, fs.Args()); msg != "" {
+	if o.completePackages {
+		// Called by the completion scripts with whatever the user typed so far,
+		// so the mode flags and arguments are ignored. Only the lockfile selection
+		// counts, and nothing slow or networked runs on a Tab press.
+		o.online, o.goGraph, o.cargoMetadata = false, false, false
+		return execute(&o, stdout, stderr)
+	}
+	if isCompletion(fs.Args()) {
+		if msg := writeCompletion(stdout, fs, fs.Arg(1)); msg != "" {
+			return usageErr(stderr, msg)
+		}
+		return 0
+	}
+	if msg := validate(&o, fs); msg != "" {
 		return usageErr(stderr, msg)
 	}
 	return execute(&o, stdout, stderr)
@@ -120,7 +145,28 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // validate checks flag combinations and the positional arguments (SPEC §3). It
 // returns a usage message, or "" when the invocation is valid, and stores the
 // package argument in o.query.
-func validate(o *options, pos []string) string {
+func validate(o *options, fs *pflag.FlagSet) string {
+	pos := fs.Args()
+	if fs.Changed("heaviest") {
+		// `--heaviest [N]`: pflag only attaches an optional value written as
+		// --heaviest=N, so N given as the next word arrives as the positional
+		// argument. Heaviest mode takes no package, so a lone number there is N.
+		if len(pos) == 1 && o.heaviest == 10 {
+			n, err := strconv.Atoi(pos[0])
+			if err == nil {
+				o.heaviest, pos = n, nil
+			}
+		}
+		if o.heaviest <= 0 {
+			return "--heaviest needs a positive number of dependencies"
+		}
+		if o.online {
+			return "--online is not supported with --heaviest"
+		}
+	}
+	if (fs.Changed("depth") || o.all) && (o.remove || o.dupes || o.heaviest > 0) {
+		return "--depth and --all apply only to why mode"
+	}
 	if o.across && !o.dupes {
 		return "--across needs --dupes"
 	}
@@ -259,6 +305,9 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		s.graphs = append(s.graphs, g)
 	}
 
+	if o.completePackages {
+		return s.packageNames()
+	}
 	if f, ok := stdout.(*os.File); ok {
 		s.style.Color = render.Enabled(f, o.noColor)
 	}
@@ -272,6 +321,26 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		return s.heaviest()
 	}
 	return s.query()
+}
+
+// packageNames prints every non-root package name in the loaded lockfiles once,
+// sorted, for the shell completion scripts.
+func (s *session) packageNames() int {
+	seen := map[string]bool{}
+	var names []string
+	for _, g := range s.graphs {
+		for _, n := range g.Nodes {
+			if !n.Root && !seen[n.Name] {
+				seen[n.Name] = true
+				names = append(names, n.Name)
+			}
+		}
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		fmt.Fprintln(s.stdout, n)
+	}
+	return 0
 }
 
 // dupes runs --dupes mode: one block of text (or one JSON result) per lockfile.

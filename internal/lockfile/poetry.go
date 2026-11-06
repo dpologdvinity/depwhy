@@ -14,7 +14,8 @@ import (
 type poetryPackage struct {
 	Name         string                 `toml:"name"`
 	Version      string                 `toml:"version"`
-	Category     string                 `toml:"category"`
+	Category     string                 `toml:"category"` // Poetry < 1.5: "main" or "dev"
+	Groups       []string               `toml:"groups"`   // Poetry >= 2.0: dependency groups that need it
 	Optional     bool                   `toml:"optional"`
 	Dependencies map[string]interface{} `toml:"dependencies"`
 }
@@ -110,26 +111,29 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 	var rootDeps []rootDep
 
 	if hasPyproject {
-		// Collect from tool.poetry.dependencies
-		for name := range pyproject.Tool.Poetry.Dependencies {
-			if canonPy(name) == "python" {
-				continue
+		// Poetry treats only the main group as production; every other group
+		// (dev, test, lint, docs, ...) is non-production, and optional = true
+		// main dependencies are extras.
+		addPoetry := func(deps map[string]interface{}, kind graph.Kind) {
+			for name, v := range deps {
+				if canonPy(name) == "python" {
+					continue
+				}
+				k := kind
+				if k == graph.Prod && poetryOptional(v) {
+					k = graph.Optional
+				}
+				rootDeps = append(rootDeps, rootDep{name, k})
 			}
-			rootDeps = append(rootDeps, rootDep{name, graph.Prod})
 		}
-		// tool.poetry.dev-dependencies
-		for name := range pyproject.Tool.Poetry.DevDependencies {
-			rootDeps = append(rootDeps, rootDep{name, graph.Dev})
-		}
-		// tool.poetry.group.*
+		addPoetry(pyproject.Tool.Poetry.Dependencies, graph.Prod)
+		addPoetry(pyproject.Tool.Poetry.DevDependencies, graph.Dev)
 		for grpName, grp := range pyproject.Tool.Poetry.Group {
 			kind := graph.Dev
-			if grpName != "dev" && grpName != "test" {
+			if grpName == "main" {
 				kind = graph.Prod
 			}
-			for name := range grp.Dependencies {
-				rootDeps = append(rootDeps, rootDep{name, kind})
-			}
+			addPoetry(grp.Dependencies, kind)
 		}
 		// project.dependencies
 		for _, rawDep := range pyproject.Project.Dependencies {
@@ -138,12 +142,12 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 				rootDeps = append(rootDeps, rootDep{name, graph.Prod})
 			}
 		}
-		// project.optional-dependencies
+		// project.optional-dependencies are extras
 		for _, list := range pyproject.Project.OptionalDependencies {
 			for _, rawDep := range list {
 				name := parsePyprojectDep(rawDep)
 				if name != "" && canonPy(name) != "python" {
-					rootDeps = append(rootDeps, rootDep{name, graph.Dev})
+					rootDeps = append(rootDeps, rootDep{name, graph.Optional})
 				}
 			}
 		}
@@ -182,11 +186,7 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 		}
 		for i, p := range lock.Package {
 			if depCounts[canonPy(p.Name)] == 0 {
-				kind := graph.Prod
-				if strings.EqualFold(p.Category, "dev") {
-					kind = graph.Dev
-				}
-				b.Edge(rootIdx, pkgNodes[i], kind)
+				b.Edge(rootIdx, pkgNodes[i], poetryLockKind(p))
 			}
 		}
 	}
@@ -202,12 +202,9 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 		sort.Strings(depNames)
 
 		for _, depName := range depNames {
-			rawVal := p.Dependencies[depName]
 			kind := graph.Prod
-			if m, ok := rawVal.(map[string]interface{}); ok {
-				if opt, ok := m["optional"].(bool); ok && opt {
-					kind = graph.Optional
-				}
+			if poetryOptional(p.Dependencies[depName]) {
+				kind = graph.Optional
 			}
 			if to, ok := resolve(p.Name, depName); ok {
 				b.Edge(from, to, kind)
@@ -222,6 +219,52 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return g, warns, nil
+}
+
+// poetryLockKind classifies a package from the lockfile alone: Poetry >= 2.0
+// records groups (main is production, every other group is dev), Poetry < 1.5
+// records category, and Poetry 1.5-1.8 records neither (so Prod). A
+// production package marked optional is only installed through an extra.
+func poetryLockKind(p poetryPackage) graph.Kind {
+	dev := strings.EqualFold(p.Category, "dev")
+	if len(p.Groups) > 0 {
+		dev = true
+		for _, g := range p.Groups {
+			if g == "main" {
+				dev = false
+			}
+		}
+	}
+	switch {
+	case dev:
+		return graph.Dev
+	case p.Optional:
+		return graph.Optional
+	}
+	return graph.Prod
+}
+
+// poetryOptional reports whether a Poetry dependency spec (a version string, a
+// table, or a list of tables for multiple constraints) sets optional = true.
+func poetryOptional(v interface{}) bool {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		opt, _ := t["optional"].(bool)
+		return opt
+	case []map[string]interface{}:
+		for _, m := range t {
+			if opt, _ := m["optional"].(bool); opt {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, m := range t {
+			if poetryOptional(m) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func canonPy(name string) string {

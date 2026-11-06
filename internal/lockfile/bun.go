@@ -1,255 +1,230 @@
 package lockfile
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
-type bunPackage struct {
-	Name                 string            `json:"name"`
-	Version              string            `json:"version"`
+// bunDeps holds the dependency maps shared by a workspace entry and the
+// metadata object of a package entry.
+type bunDeps struct {
 	Dependencies         map[string]string `json:"dependencies"`
 	DevDependencies      map[string]string `json:"devDependencies"`
 	OptionalDependencies map[string]string `json:"optionalDependencies"`
 	PeerDependencies     map[string]string `json:"peerDependencies"`
 }
 
+// bunWorkspace is one value of the "workspaces" map, keyed by the member's
+// directory ("" is the project itself).
 type bunWorkspace struct {
-	Name                 string            `json:"name"`
-	Version              string            `json:"version"`
-	Dependencies         map[string]string `json:"dependencies"`
-	DevDependencies      map[string]string `json:"devDependencies"`
-	OptionalDependencies map[string]string `json:"optionalDependencies"`
-	PeerDependencies     map[string]string `json:"peerDependencies"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	bunDeps
 }
 
+// bunLock is the subset of bun.lock depwhy reads. Each "packages" value is an
+// array whose first element is "name@version" (the real name, also for npm
+// aliases); the first object after it, when present, holds the dependency
+// maps. Its position depends on the source: index 2 for registry packages,
+// index 1 for tarball, file and git ones, absent for workspace members.
 type bunLock struct {
-	LockfileVersion int                     `json:"lockfileVersion"`
-	Workspaces      map[string]bunWorkspace `json:"workspaces"`
-	Packages        map[string]bunPackage   `json:"packages"`
+	Workspaces map[string]bunWorkspace      `json:"workspaces"`
+	Packages   map[string][]json.RawMessage `json:"packages"`
 }
 
-// ParseBun parses a bun.lock file (Bun >= 1.2 JSONC format).
+// bunSplitKey splits a packages key (an install path such as "a/@s/e/c") into
+// package names, keeping "@scope/name" together.
+func bunSplitKey(key string) []string {
+	var out []string
+	for _, p := range strings.Split(key, "/") {
+		if n := len(out); n > 0 && strings.HasPrefix(out[n-1], "@") && !strings.Contains(out[n-1], "/") {
+			out[n-1] += "/" + p
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// bunResolve returns the packages key that dependency `name` of the package at
+// key `from` resolves to, like node_modules lookup: try from/name, then drop
+// one package from the path at a time, ending with the top-level key. from is
+// "" for the project root. It reports false when no key matches.
+func bunResolve(pkgs map[string][]json.RawMessage, from, name string) (string, bool) {
+	var parents []string
+	if from != "" {
+		parents = bunSplitKey(from)
+	}
+	for i := len(parents); i >= 0; i-- {
+		key := strings.Join(append(parents[:i:i], name), "/")
+		if _, ok := pkgs[key]; ok {
+			return key, true
+		}
+	}
+	return "", false
+}
+
+// bunEntry decodes one packages value into its name, version and dependency
+// maps. The name ends at the first "@" after index 0, so scoped names work.
+func bunEntry(raw []json.RawMessage) (name, version string, deps bunDeps, err error) {
+	var ident string
+	if len(raw) == 0 || json.Unmarshal(raw[0], &ident) != nil || ident == "" {
+		return "", "", deps, fmt.Errorf("entry does not start with a \"name@version\" string")
+	}
+	name, version = ident, ""
+	if i := strings.Index(ident[1:], "@"); i >= 0 {
+		name, version = ident[:i+1], ident[i+2:]
+	}
+	for _, r := range raw[1:] {
+		if t := bytes.TrimSpace(r); len(t) > 0 && t[0] == '{' {
+			err = json.Unmarshal(t, &deps)
+			break
+		}
+	}
+	return name, version, deps, err
+}
+
+// ParseBun parses a bun.lock file (Bun >= 1.2 text lockfile, JSONC: comments
+// and trailing commas allowed).
+//
+// The project and every workspace member become roots. Packages keys are
+// install paths ("parent/child" for a nested copy) and dependencies resolve
+// through them like node_modules lookup. Edge kinds follow the npm parser:
+// only roots have dev edges, and unresolvable prod or dev dependencies produce
+// warnings while optional and peer ones are skipped silently.
 func ParseBun(path string, data []byte) (*graph.Graph, []string, error) {
-	clean := stripJSONComments(data)
 	var lock bunLock
-	if err := json.Unmarshal(clean, &lock); err != nil {
+	if err := json.Unmarshal(stripJSONC(data), &lock); err != nil {
 		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
 	b := graph.NewBuilder("npm", path)
-
-	// Sort workspace keys
-	wsKeys := make([]string, 0, len(lock.Workspaces))
-	for k := range lock.Workspaces {
-		wsKeys = append(wsKeys, k)
-	}
-	sort.Strings(wsKeys)
-
-	// Sort package keys
-	pkgKeys := make([]string, 0, len(lock.Packages))
-	for k := range lock.Packages {
-		pkgKeys = append(pkgKeys, k)
-	}
-	sort.Strings(pkgKeys)
-
-	wsNodes := map[string]int{}
-	pkgNodes := map[string]int{}
-	descNodes := map[string]int{}
-
-	for _, k := range wsKeys {
-		ws := lock.Workspaces[k]
-		label := ws.Name
-		if label == "" {
-			if k == "" {
-				label = "app"
-			} else {
-				label = k
-			}
+	wsKeys := sortedKeys(lock.Workspaces)
+	label := func(k string) string {
+		switch ws := lock.Workspaces[k]; {
+		case ws.Name != "":
+			return ws.Name
+		case k == "":
+			return "app"
 		}
-		idx := b.Root(label, ws.Version)
-		wsNodes[k] = idx
+		return k
 	}
-
-	// Fallback if no workspaces defined
+	wsNodes := map[string]int{}
+	for _, k := range wsKeys {
+		wsNodes[k] = b.Root(label(k), lock.Workspaces[k].Version)
+	}
 	if len(wsNodes) == 0 {
 		wsNodes[""] = b.Root("app", "")
-		wsKeys = append(wsKeys, "")
+		wsKeys = []string{""}
 	}
 
+	// Package nodes. A workspace member's entry ("lib@workspace:packages/lib")
+	// is its root node, and its key is where its nested dependencies live.
+	pkgKeys := sortedKeys(lock.Packages)
+	idx := map[string]int{}
+	names := map[string]string{}
+	deps := map[string]bunDeps{}
+	wsFrom := map[string]string{"": ""}
 	for _, k := range pkgKeys {
-		p := lock.Packages[k]
-		name := p.Name
-		version := p.Version
-		if name == "" || version == "" {
-			n, v := parseDescriptor(k)
-			if name == "" {
-				name = n
-			}
-			if version == "" {
-				version = v
+		name, version, d, err := bunEntry(lock.Packages[k])
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse %s: packages[%q]: %w", path, k, err)
+		}
+		if dir, ok := strings.CutPrefix(version, "workspace:"); ok {
+			if root, ok := wsNodes[dir]; ok {
+				idx[k], wsFrom[dir] = root, k
+				continue
 			}
 		}
-		idx := b.Node(name, version)
-		pkgNodes[k] = idx
-		descNodes[k] = idx
-		descNodes[name+"@"+version] = idx
-		descNodes[name] = idx
+		idx[k], names[k], deps[k] = b.Node(name, version), name, d
 	}
 
 	var warns []string
-
-	// Edges from workspaces
+	addEdges := func(from int, fromKey, fromLabel string, d bunDeps, root bool) {
+		kinds := []struct {
+			deps map[string]string
+			kind graph.Kind
+		}{
+			{d.Dependencies, graph.Prod},
+			{d.OptionalDependencies, graph.Optional},
+			{d.PeerDependencies, graph.Peer},
+		}
+		if root {
+			kinds = append(kinds, struct {
+				deps map[string]string
+				kind graph.Kind
+			}{d.DevDependencies, graph.Dev})
+		}
+		for _, kd := range kinds {
+			for _, n := range sortedKeys(kd.deps) {
+				target, ok := bunResolve(lock.Packages, fromKey, n)
+				if !ok {
+					if kd.kind == graph.Prod || kd.kind == graph.Dev {
+						warns = append(warns, fmt.Sprintf("unresolved dependency %s of %s", n, fromLabel))
+					}
+					continue
+				}
+				b.Edge(from, idx[target], kd.kind)
+			}
+		}
+	}
 	for _, k := range wsKeys {
-		ws := lock.Workspaces[k]
-		from := wsNodes[k]
-		fromLabel := ws.Name
-		if fromLabel == "" {
-			fromLabel = "app"
-		}
-
-		type depKind struct {
-			deps map[string]string
-			kind graph.Kind
-		}
-		kinds := []depKind{
-			{ws.Dependencies, graph.Prod},
-			{ws.DevDependencies, graph.Dev},
-			{ws.OptionalDependencies, graph.Optional},
-			{ws.PeerDependencies, graph.Peer},
-		}
-
-		for _, dk := range kinds {
-			for depName, spec := range dk.deps {
-				to, ok := resolveBun(descNodes, depName, spec)
-				if ok {
-					b.Edge(from, to, dk.kind)
-				} else if dk.kind == graph.Prod || dk.kind == graph.Dev {
-					warns = append(warns, fmt.Sprintf("unresolved dependency %s of %s", depName, fromLabel))
-				}
-			}
-		}
+		// A member with no packages entry resolves from the top level ("").
+		addEdges(wsNodes[k], wsFrom[k], label(k), lock.Workspaces[k].bunDeps, true)
 	}
-
-	// Edges between packages
 	for _, k := range pkgKeys {
-		p := lock.Packages[k]
-		from := pkgNodes[k]
-		fromName := p.Name
-		if fromName == "" {
-			fromName, _ = parseDescriptor(k)
-		}
-
-		type depKind struct {
-			deps map[string]string
-			kind graph.Kind
-		}
-		kinds := []depKind{
-			{p.Dependencies, graph.Prod},
-			{p.OptionalDependencies, graph.Optional},
-			{p.PeerDependencies, graph.Peer},
-		}
-
-		for _, dk := range kinds {
-			for depName, spec := range dk.deps {
-				to, ok := resolveBun(descNodes, depName, spec)
-				if ok {
-					b.Edge(from, to, dk.kind)
-				} else if dk.kind == graph.Prod {
-					warns = append(warns, fmt.Sprintf("unresolved dependency %s of %s", depName, fromName))
-				}
-			}
+		if d, ok := deps[k]; ok {
+			addEdges(idx[k], k, names[k], d, false)
 		}
 	}
-
-	g, err := b.Build()
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return g, warns, nil
+	return finish(b, warns)
 }
 
-func resolveBun(nodes map[string]int, depName, spec string) (int, bool) {
-	if idx, ok := nodes[spec]; ok {
-		return idx, true
-	}
-	target := depName + "@" + spec
-	if idx, ok := nodes[target]; ok {
-		return idx, true
-	}
-	prefix := depName + "@"
-	for k, idx := range nodes {
-		if strings.HasPrefix(k, prefix) {
-			return idx, true
-		}
-	}
-	if idx, ok := nodes[depName]; ok {
-		return idx, true
-	}
-	return 0, false
-}
-
-func stripJSONComments(data []byte) []byte {
+// stripJSONC turns JSONC into JSON: it removes // and /* */ comments and
+// trailing commas before } or ], leaving the contents of strings untouched.
+func stripJSONC(data []byte) []byte {
 	out := make([]byte, 0, len(data))
-	inString := false
-	escape := false
-	inLineComment := false
-	inBlockComment := false
-
 	for i := 0; i < len(data); i++ {
-		b := data[i]
-
-		if inLineComment {
-			if b == '\n' {
-				inLineComment = false
-				out = append(out, b)
+		c := data[i]
+		switch {
+		case c == '"':
+			// Copy the whole string, honouring backslash escapes.
+			j := i + 1
+			for j < len(data) && data[j] != '"' {
+				if data[j] == '\\' {
+					j++
+				}
+				j++
 			}
-			continue
-		}
-
-		if inBlockComment {
-			if b == '*' && i+1 < len(data) && data[i+1] == '/' {
-				inBlockComment = false
+			j = min(j, len(data)-1)
+			out = append(out, data[i:j+1]...)
+			i = j
+		case c == '/' && i+1 < len(data) && data[i+1] == '/':
+			for i < len(data) && data[i] != '\n' {
 				i++
 			}
-			continue
-		}
-
-		if inString {
-			out = append(out, b)
-			if escape {
-				escape = false
-			} else if b == '\\' {
-				escape = true
-			} else if b == '"' {
-				inString = false
+			i-- // keep the newline
+		case c == '/' && i+1 < len(data) && data[i+1] == '*':
+			end := bytes.Index(data[i+2:], []byte("*/"))
+			if end < 0 {
+				return out
 			}
-			continue
-		}
-
-		if b == '"' {
-			inString = true
-			out = append(out, b)
-			continue
-		}
-
-		if b == '/' && i+1 < len(data) {
-			if data[i+1] == '/' {
-				inLineComment = true
-				i++
-				continue
-			} else if data[i+1] == '*' {
-				inBlockComment = true
-				i++
-				continue
+			i += end + 3
+		case c == '}' || c == ']':
+			// Drop a trailing comma, ignoring whitespace and comments already
+			// stripped from out.
+			t := bytes.TrimRight(out, " \t\r\n")
+			if len(t) > 0 && t[len(t)-1] == ',' {
+				out = append(t[:len(t)-1], out[len(t):]...)
 			}
+			out = append(out, c)
+		default:
+			out = append(out, c)
 		}
-
-		out = append(out, b)
 	}
 	return out
 }

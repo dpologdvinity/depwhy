@@ -1,82 +1,172 @@
 package lockfile
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/dpologdvinity/depwhy/internal/graph"
 )
 
-func TestParseBun(t *testing.T) {
-	path := "../../testdata/edge/bun/bun.lock"
-	g, warns, err := ParseBun(path, readFixture(t, path))
+// TestParseBunSharedFixture checks that the real `bun install` output in
+// testdata/projects/bun encodes the same logical graph as the npm fixture.
+func TestParseBunSharedFixture(t *testing.T) {
+	bg, warns, err := ParseBun("bun.lock", readFixture(t, "../../testdata/projects/bun/bun.lock"))
 	if err != nil {
 		t.Fatalf("ParseBun: %v", err)
 	}
-	if len(warns) > 0 {
-		t.Fatalf("unexpected warnings: %v", warns)
+	if len(warns) != 0 {
+		t.Fatalf("warnings: %v", warns)
 	}
-	if g.Ecosystem != "npm" {
-		t.Errorf("ecosystem = %s, want npm", g.Ecosystem)
+	ng, _, err := ParseNPM("package-lock.json", readFixture(t, "../../testdata/projects/npm/package-lock.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	roots := g.Roots
-	if len(roots) != 1 || g.Nodes[roots[0]].Name != "app" {
-		t.Fatalf("roots = %v, want [app]", roots)
+	if bg.Ecosystem != "npm" {
+		t.Errorf("ecosystem = %s, want npm", bg.Ecosystem)
 	}
-
-	// Verify edges from root: a (prod), b (dev)
-	var rootDeps []struct {
-		name string
-		kind graph.Kind
+	if got, want := rootIDs(bg), rootIDs(ng); !reflect.DeepEqual(got, want) {
+		t.Fatalf("roots = %v, want %v", got, want)
 	}
-	for _, e := range g.Out[roots[0]] {
-		rootDeps = append(rootDeps, struct {
-			name string
-			kind graph.Kind
-		}{g.Nodes[e.To].Name, e.Kind})
-	}
-	if len(rootDeps) != 2 {
-		t.Fatalf("rootDeps = %v, want 2 edges", rootDeps)
-	}
-
-	// Find a and check out edges
-	aNodes := g.Find("a", "")
-	if len(aNodes) != 1 {
-		t.Fatalf("find a = %v", aNodes)
-	}
-	var aDeps []string
-	for _, e := range g.Out[aNodes[0]] {
-		aDeps = append(aDeps, g.Nodes[e.To].Name)
-	}
-	if !strings.Contains(strings.Join(aDeps, ","), "c") || !strings.Contains(strings.Join(aDeps, ","), "d") {
-		t.Errorf("aDeps = %v, want c and d", aDeps)
+	if got, want := edgeStrings(bg), edgeStrings(ng); !reflect.DeepEqual(got, want) {
+		t.Fatalf("edges = %v\nwant %v", got, want)
 	}
 }
 
-func TestParseBunCommentsAndUnresolved(t *testing.T) {
-	data := []byte(`// Bun lockfile v1
+// TestParseBunRealEdgeCases parses a real Bun lockfile with a workspace member,
+// a scoped package, an npm alias, file: and tarball dependencies, optional and
+// peer edges, and three nested copies of an older version.
+func TestParseBunRealEdgeCases(t *testing.T) {
+	g, warns, err := ParseBun("bun.lock", readFixture(t, "../../testdata/edge/bun/bun.lock"))
+	if err != nil {
+		t.Fatalf("ParseBun: %v", err)
+	}
+	if len(warns) != 0 {
+		t.Fatalf("warnings: %v", warns)
+	}
+	if got := rootIDs(g); !reflect.DeepEqual(got, []string{"root:root", "root:lib"}) {
+		t.Fatalf("roots = %v", got)
+	}
+	tb := "a@http://127.0.0.1:4873/a/-/a-1.0.0.tgz"
+	want := []string{
+		"@s/e@1.0.0 -> c@1.0.0 prod",
+		tb + " -> c@1.0.0 prod",
+		tb + " -> d@1.0.0 prod",
+		"f@1.0.0 -> d@1.0.0 peer",
+		"f@1.0.0 -> g@1.0.0 optional",
+		"localdep@file:localdep -> d@1.0.0 prod",
+		"root:lib -> @s/e@1.0.0 prod",
+		"root:lib -> c@1.0.0 prod",
+		"root:lib -> d@1.0.0 peer",
+		"root:root -> " + tb + " prod",
+		"root:root -> c@1.0.0 prod",
+		"root:root -> c@2.0.0 prod",
+		"root:root -> d@1.0.0 peer",
+		"root:root -> f@1.0.0 prod",
+		"root:root -> g@1.0.0 optional",
+		"root:root -> localdep@file:localdep prod",
+		"root:root -> root:lib prod",
+	}
+	if got := edgeStrings(g); !reflect.DeepEqual(got, want) {
+		t.Fatalf("edges =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// TestParseBunInline covers JSONC syntax, nested install paths, walking up from
+// a scoped parent without matching a sibling scoped package, and deterministic
+// warnings for dependencies with no matching key.
+func TestParseBunInline(t *testing.T) {
+	data := []byte(`// bun.lock
 {
-  /* comment */
+  /* block
+     comment */
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "dependencies": {
-        "missing": "^1.0.0"
-      }
-    }
+      "name": "app",
+      "dependencies": { "@s/e": "^1.0.0", "z1": "^1", "z2": "^1", "z3": "^1", }, // trailing comma
+      "devDependencies": { "zdev": "^1", },
+      "optionalDependencies": { "zopt": "^1", },
+    },
   },
-  "packages": {}
+  "packages": {
+    "@s/e": ["@s/e@1.0.0", "", { "dependencies": { "x": "^1.0.0", "y": "^2.0.0", "zmissing": "^1", }, }, "sha512-//,}"],
+    "@s/x": ["@s/x@9.0.0", "", {}, "sha512-"],
+    "x": ["x@1.0.0", "", {}, "sha512-"],
+    "y": ["y@1.0.0", "", {}, "sha512-"],
+    "@s/e/y": ["y@2.0.0", "", {}, "sha512-"],
+  },
 }
 `)
-	g, warns, err := ParseBun("bun.lock", data)
+	var first []string
+	for i := 0; i < 20; i++ {
+		g, warns, err := ParseBun("bun.lock", data)
+		if err != nil {
+			t.Fatalf("ParseBun: %v", err)
+		}
+		want := []string{
+			"@s/e@1.0.0 -> x@1.0.0 prod",
+			"@s/e@1.0.0 -> y@2.0.0 prod",
+			"root:app -> @s/e@1.0.0 prod",
+		}
+		if got := edgeStrings(g); !reflect.DeepEqual(got, want) {
+			t.Fatalf("edges = %v", got)
+		}
+		if i == 0 {
+			first = warns
+			continue
+		}
+		if !reflect.DeepEqual(warns, first) {
+			t.Fatalf("warnings changed between runs: %v vs %v", warns, first)
+		}
+	}
+	want := []string{
+		"unresolved dependency z1 of app",
+		"unresolved dependency z2 of app",
+		"unresolved dependency z3 of app",
+		"unresolved dependency zdev of app",
+		"unresolved dependency zmissing of @s/e",
+		"@s/x@9.0.0 is not reachable from any root",
+		"y@1.0.0 is not reachable from any root",
+	}
+	if !reflect.DeepEqual(first, want) {
+		t.Fatalf("warnings =\n%s\nwant\n%s", strings.Join(first, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// TestStripJSONC checks that comments and trailing commas are removed only
+// outside strings, so "//", "/*" and ",}" inside values survive.
+func TestStripJSONC(t *testing.T) {
+	in := `{"a": "x // y", "b": "/* not */", "c": "q\",}", "d": [1, 2, ], /* c */ "e": "\\", // end
+}`
+	var got map[string]any
+	if err := json.Unmarshal(stripJSONC([]byte(in)), &got); err != nil {
+		t.Fatalf("unmarshal: %v (%s)", err, stripJSONC([]byte(in)))
+	}
+	want := map[string]any{"a": "x // y", "b": "/* not */", "c": `q",}`, "d": []any{1.0, 2.0}, "e": `\`}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// TestParseBunMalformed checks errors for invalid JSON and package entries that
+// are not arrays starting with a "name@version" string, and the fallback root
+// for a lockfile with no workspaces.
+func TestParseBunMalformed(t *testing.T) {
+	for _, in := range []string{
+		`not json`,
+		`{"packages": {"a": {"name": "a"}}}`,
+		`{"packages": {"a": []}}`,
+		`{"packages": {"a": [1]}}`,
+	} {
+		if _, _, err := ParseBun("bun.lock", []byte(in)); err == nil || !strings.Contains(err.Error(), "bun.lock") {
+			t.Errorf("%s: err = %v", in, err)
+		}
+	}
+	g, _, err := ParseBun("bun.lock", []byte(`{}`))
 	if err != nil {
-		t.Fatalf("ParseBun with comments: %v", err)
+		t.Fatal(err)
 	}
-	if len(g.Roots) != 1 {
-		t.Fatalf("roots = %v, want 1", g.Roots)
-	}
-	if len(warns) == 0 || !strings.Contains(warns[0], "unresolved dependency missing") {
-		t.Fatalf("expected unresolved warning, got %v", warns)
+	if got := rootIDs(g); !reflect.DeepEqual(got, []string{"root:app"}) {
+		t.Fatalf("roots = %v", got)
 	}
 }
