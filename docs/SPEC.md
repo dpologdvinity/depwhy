@@ -82,7 +82,7 @@ than being silently ignored.
 ### 3.2 Package argument
 
 - Form: `name` or `name@version`. Split at the last `@` whose index is greater than 0, so `@babel/core@7.24.0` gives name `@babel/core` and version `7.24.0`, and `@babel/core` gives name `@babel/core` with no version.
-- The version, if given, must match a node's version string exactly (no ranges).
+- The version, if given, must match a node's version string exactly (no ranges). Go module versions always start with `v`, so for Go the `v` may be left out (`c@1.2.0` matches `v1.2.0`).
 - Name matching is normalized per ecosystem (§5.5).
 
 ### 3.3 Exit codes
@@ -236,11 +236,19 @@ For a single target `t`, build the reverse tree:
 ### 6.4 Not-found suggestions
 
 If no node matches, collect normalized names within Levenshtein distance ≤ 2 of
-the normalized query, across all loaded graphs. Print up to 3, sorted by
-`(distance, name)`:
+the normalized query, across all loaded graphs, leaving out the query itself. Print
+up to 3, sorted by `(distance, name)`:
 ```
 depwhy: lodahs not found in package-lock.json, uv.lock
 did you mean: lodash, lodash.get
+```
+
+If the name is installed and only the version (or `--prod`) excluded it, there are no
+suggestions. A version miss names the installed versions instead, and a `--prod` miss
+says so:
+```
+depwhy: lodash@9.9.9 not found in package-lock.json (installed: lodash@4.17.21)
+depwhy: mocha not found in package-lock.json (found only via dev dependencies; drop --prod)
 ```
 
 ### 6.5 Version order

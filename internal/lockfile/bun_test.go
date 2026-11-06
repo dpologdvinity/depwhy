@@ -10,7 +10,8 @@ import (
 // TestParseBunSharedFixture checks that the real `bun install` output in
 // testdata/projects/bun encodes the same logical graph as the npm fixture.
 func TestParseBunSharedFixture(t *testing.T) {
-	bg, warns, err := ParseBun("bun.lock", readFixture(t, "../../testdata/projects/bun/bun.lock"))
+	const lock = "../../testdata/projects/bun/bun.lock"
+	bg, warns, err := ParseBun(lock, readFixture(t, lock))
 	if err != nil {
 		t.Fatalf("ParseBun: %v", err)
 	}
@@ -29,6 +30,10 @@ func TestParseBunSharedFixture(t *testing.T) {
 	}
 	if got, want := edgeStrings(bg), edgeStrings(ng); !reflect.DeepEqual(got, want) {
 		t.Fatalf("edges = %v\nwant %v", got, want)
+	}
+	// bun.lock omits the project's own version; it comes from package.json.
+	if got := bg.Nodes[bg.Roots[0]].Version; got != "1.0.0" {
+		t.Fatalf("root version = %q, want 1.0.0 from package.json", got)
 	}
 }
 

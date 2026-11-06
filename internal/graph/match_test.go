@@ -36,6 +36,24 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
+// TestFindGoVersionPrefix checks that a Go version matches with or without its
+// leading "v", while other ecosystems still need the exact version.
+func TestFindGoVersionPrefix(t *testing.T) {
+	g := buildSimple(t, "go", [2]string{"example.com/c", "v1.2.0"})
+	for _, v := range []string{"v1.2.0", "1.2.0"} {
+		if got := g.Find("example.com/c", v); len(got) != 1 {
+			t.Errorf("go %q: %v", v, got)
+		}
+	}
+	if got := g.Find("example.com/c", "1.2"); len(got) != 0 {
+		t.Errorf("go 1.2 matched %v", got)
+	}
+	n := buildSimple(t, "npm", [2]string{"c", "1.2.0"})
+	if got := n.Find("c", "v1.2.0"); len(got) != 0 {
+		t.Errorf("npm v1.2.0 matched %v", got)
+	}
+}
+
 // buildSimple makes a graph in which one root requires every given name@version.
 func buildSimple(t *testing.T, eco string, pkgs ...[2]string) *Graph {
 	t.Helper()
@@ -89,6 +107,11 @@ func TestSuggestOrdering(t *testing.T) {
 	}
 	if got := Suggest([]*Graph{g1}, "zzzzzz"); len(got) != 0 {
 		t.Fatalf("got %v", got)
+	}
+	// The queried name itself is never suggested: when it exists, the miss was
+	// caused by the version or --prod, and suggesting it again does not help.
+	if got, want := Suggest([]*Graph{g1}, "lodash"), []string{"lodas"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 	// Distance 1 beats distance 2, and the list caps at 3.
 	g3 := buildSimple(t, "npm", [2]string{"abcd", "1"}, [2]string{"abce", "1"}, [2]string{"abxx", "1"}, [2]string{"abcdef", "1"}, [2]string{"abcf", "1"})

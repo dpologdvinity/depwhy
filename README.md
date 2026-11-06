@@ -137,7 +137,9 @@ depwhy --json lodash | jq .       # machine-readable
 
 Names are matched the way the ecosystem does: exactly for npm, PEP 503
 normalization for Python (`Foo_Bar` matches `foo-bar`), and `_`/`-` equivalence
-for Cargo. If nothing matches, depwhy suggests close names.
+for Cargo. A Go version matches with or without its `v`. If nothing matches,
+depwhy suggests close names, or lists the installed versions when only the version
+was wrong.
 
 ### Flags
 

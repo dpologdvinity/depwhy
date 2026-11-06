@@ -82,6 +82,21 @@ func TestHeaviestLimit(t *testing.T) {
 	}
 }
 
+// TestNotFoundVersionListsInstalled checks that a query for a version that is
+// not installed names the versions that are, instead of suggesting other names.
+func TestNotFoundVersionListsInstalled(t *testing.T) {
+	code, _, errs := run("-C", project("npm"), "c@9.9.9")
+	want := "depwhy: c@9.9.9 not found in package-lock.json (installed: c@1.0.0, c@2.0.0)\n"
+	if code != 1 || errs != want {
+		t.Fatalf("code=%d stderr=%q, want %q", code, errs, want)
+	}
+	// A dev-only package under --prod exists too, so it gets no suggestions.
+	code, _, errs = run("-C", project("npm"), "--prod", "b")
+	if code != 1 || strings.Contains(errs, "did you mean") || !strings.Contains(errs, "drop --prod") {
+		t.Fatalf("code=%d stderr=%q", code, errs)
+	}
+}
+
 // update rewrites the golden files: go test ./internal/cli -update.
 var update = flag.Bool("update", false, "rewrite golden files")
 

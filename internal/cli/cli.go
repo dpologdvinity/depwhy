@@ -546,11 +546,29 @@ func (s *session) notFound(doc *render.Doc, name string, devOnly bool) int {
 		files = append(files, file)
 	}
 	msg := fmt.Sprintf("%s not found in %s", s.o.query, strings.Join(files, ", "))
-	if devOnly {
+	// When the name exists the miss came from the version or --prod: say which
+	// versions are there instead of suggesting other names.
+	var installed []string
+	seen := map[string]bool{}
+	for _, g := range s.graphs {
+		for _, n := range g.Find(name, "") {
+			if id := g.Nodes[n].Name + "@" + g.Nodes[n].Version; !seen[id] {
+				seen[id] = true
+				installed = append(installed, id)
+			}
+		}
+	}
+	switch {
+	case devOnly:
 		msg += " (found only via dev dependencies; drop --prod)"
+	case len(installed) > 0:
+		msg += " (installed: " + strings.Join(installed, ", ") + ")"
 	}
 	fmt.Fprintf(s.stderr, "depwhy: %s\n", msg)
-	sugg := graph.Suggest(s.graphs, name)
+	sugg := []string{}
+	if len(installed) == 0 {
+		sugg = graph.Suggest(s.graphs, name)
+	}
 	if len(sugg) > 0 {
 		fmt.Fprintf(s.stderr, "did you mean: %s\n", strings.Join(sugg, ", "))
 	}
