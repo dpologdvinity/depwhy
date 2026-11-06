@@ -42,6 +42,9 @@ type pyprojectTOML struct {
 		Dependencies         []string            `toml:"dependencies"`
 		OptionalDependencies map[string][]string `toml:"optional-dependencies"`
 	} `toml:"project"`
+	// DependencyGroups is PEP 735 (Poetry 2.2+): each entry is a PEP 508
+	// requirement string or an {include-group = "name"} table.
+	DependencyGroups map[string][]interface{} `toml:"dependency-groups"`
 }
 
 // ParsePoetry parses a poetry.lock file (SPEC §14.2.3).
@@ -151,6 +154,18 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 				}
 			}
 		}
+		// [dependency-groups] are all non-production. An {include-group}
+		// table only adds another group's requirements, which this loop
+		// already records as dev, so tables are skipped rather than followed.
+		for _, list := range pyproject.DependencyGroups {
+			for _, entry := range list {
+				if s, ok := entry.(string); ok {
+					if name := parsePyprojectDep(s); name != "" {
+						rootDeps = append(rootDeps, rootDep{name, graph.Dev})
+					}
+				}
+			}
+		}
 	}
 
 	// Stable sort rootDeps
@@ -165,7 +180,8 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 		seen := map[string]bool{}
 		for _, rd := range rootDeps {
 			key := rd.name + ":" + string(rune(rd.kind))
-			if seen[key] {
+			// A self-reference such as the extra all = ["proj[x]"] is not a dependency.
+			if seen[key] || canonPy(rd.name) == canonPy(rootName) {
 				continue
 			}
 			seen[key] = true
@@ -214,11 +230,7 @@ func ParsePoetry(path string, data []byte) (*graph.Graph, []string, error) {
 		}
 	}
 
-	g, err := b.Build()
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return g, warns, nil
+	return finish(b, warns)
 }
 
 // poetryLockKind classifies a package from the lockfile alone: Poetry >= 2.0

@@ -1,0 +1,16 @@
+[project]
+name = "proj"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = ["six"]
+
+[project.optional-dependencies]
+x = ["idna"]
+
+[dependency-groups]
+dev = ["certifi>=2020", { include-group = "lint" }]
+lint = ["toml"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"

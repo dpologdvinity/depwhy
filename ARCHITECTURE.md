@@ -133,7 +133,7 @@ The strings are warnings. They never fail a run.
 | `yarn.lock` Berry / Classic | `workspace:` entries (Berry) or `package.json` and its `workspaces` globs (Classic) | exact `name@range` descriptor, else by name; names from `resolution`, so aliases and `patch:` entries merge with their package; dev kinds from each workspace's `package.json` |
 | `bun.lock` (text, Bun 1.2+) | `""` and workspace directories | `packages` keys are install paths (`parent/child`); a name resolves to the nearest key, walking up to the top level |
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
-| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups and extras, else the lockfile's `groups` or `category` |
+| `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups, `[dependency-groups]` and extras, else the lockfile's `groups` or `category` |
 | `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
 | `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` reduced to the MVS-selected versions; `replace` never renames a module |
 

@@ -3,6 +3,7 @@ package lockfile
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -257,7 +258,9 @@ func TestCargoMetadataLeavesStaleLockUntouched(t *testing.T) {
 // TestCargoMetadataRunsInProject checks that cargo metadata reads the project
 // next to the lockfile (not the current directory), that sub is a dependency
 // rather than a root as in the plain Cargo.lock parse, and that the project's
-// rust-toolchain.toml and .cargo/config.toml cannot choose the binaries run.
+// rust-toolchain.toml and .cargo/config.toml cannot choose the binaries run
+// or pass rustflags (here a codegen backend that does not exist, so rustc
+// would fail) to the compiler query.
 func TestCargoMetadataRunsInProject(t *testing.T) {
 	requireTool(t, "cargo")
 	lock := "version = 3\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"sub\",\n]\n\n[[package]]\nname = \"sub\"\nversion = \"0.1.0\"\n"
@@ -268,7 +271,12 @@ func TestCargoMetadataRunsInProject(t *testing.T) {
 		writeTree(t, dir, map[string]string{
 			"evil/bin/cargo":      "#!/bin/sh\ntouch '" + marker + "'\nexit 1\n",
 			"rust-toolchain.toml": "[toolchain]\npath = '" + filepath.Join(dir, "evil") + "'\n",
-			".cargo/config.toml":  "[build]\nrustc = 'evil/bin/cargo'\nrustc-wrapper = 'evil/bin/cargo'\nrustc-workspace-wrapper = 'evil/bin/cargo'\n",
+			".cargo/config.toml": "[build]\nrustc = 'evil/bin/cargo'\nrustc-wrapper = 'evil/bin/cargo'\nrustc-workspace-wrapper = 'evil/bin/cargo'\n" +
+				// rustflags reach cargo's `rustc --print=cfg` query; with [env]
+				// RUSTC_BOOTSTRAP a stable rustc would load this codegen backend.
+				"rustflags = ['-Zcodegen-backend=" + filepath.Join(dir, "evil.so") + "']\n" +
+				"[target." + hostTriple(t) + "]\nrustflags = ['-Zcodegen-backend=" + filepath.Join(dir, "evil.so") + "']\n" +
+				"[env]\nRUSTC_BOOTSTRAP = '1'\n",
 		})
 		if err := os.Chmod(filepath.Join(dir, "evil/bin/cargo"), 0o755); err != nil {
 			t.Fatal(err)
@@ -286,5 +294,85 @@ func TestCargoMetadataRunsInProject(t *testing.T) {
 	}
 	if got := readFixture(t, path); !bytes.Equal(got, []byte(lock)) {
 		t.Fatalf("Cargo.lock was modified:\n%s", got)
+	}
+}
+
+// hostTriple returns rustc's host target triple, for a [target.<triple>] table.
+func hostTriple(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command("rustc", "-vV").Output()
+	if err != nil {
+		t.Skipf("rustc -vV: %v", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if h, ok := strings.CutPrefix(line, "host: "); ok {
+			return strings.TrimSpace(h)
+		}
+	}
+	t.Skip("rustc -vV printed no host line")
+	return ""
+}
+
+// TestCargoMetadataRelativePath checks that a lockfile path relative to the
+// working directory reaches the right Cargo.toml (cargo runs in the
+// project directory, so the manifest path must not be joined with it again).
+func TestCargoMetadataRelativePath(t *testing.T) {
+	requireTool(t, "cargo")
+	lock := "version = 3\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"sub\",\n]\n\n[[package]]\nname = \"sub\"\nversion = \"0.1.0\"\n"
+	path := cargoProject(t, lock)
+	t.Chdir(filepath.Dir(filepath.Dir(path)))
+	rel := filepath.Join(filepath.Base(filepath.Dir(path)), "Cargo.lock")
+	g, warns, err := Load(Found{Path: rel, Ecosystem: "cargo", Format: "cargo", CargoMetadata: true})
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if got := edgeStrings(g); !reflect.DeepEqual(got, []string{"root:app -> sub@0.1.0 prod"}) {
+		t.Fatalf("edges = %v", got)
+	}
+}
+
+// TestCargoEnvRustup checks cargoEnv's toolchain pinning: with rustup absent
+// nothing is pinned (no toolchain files are read), and with a rustup whose
+// `rustup default` fails cargo metadata is refused and Load falls back to the
+// plain Cargo.lock parse, rather than letting rust-toolchain.toml choose.
+func TestCargoEnvRustup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a fake rustup")
+	}
+	t.Setenv("RUSTUP_TOOLCHAIN", "")
+	if err := os.Unsetenv("RUSTUP_TOOLCHAIN"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RUSTC", "")
+	if err := os.Unsetenv("RUSTC"); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("PATH", t.TempDir())
+	env, err := cargoEnv()
+	want := []string{"RUSTC_WRAPPER=", "RUSTC_WORKSPACE_WRAPPER=", "CARGO_ENCODED_RUSTFLAGS=", "RUSTC=rustc"}
+	if err != nil || !reflect.DeepEqual(env, want) {
+		t.Fatalf("no rustup: env=%v err=%v", env, err)
+	}
+
+	bin := t.TempDir()
+	writeTree(t, bin, map[string]string{"rustup": "#!/bin/sh\necho 'error: no default toolchain configured' >&2\nexit 1\n"})
+	if err := os.Chmod(filepath.Join(bin, "rustup"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	if _, err := cargoEnv(); err == nil {
+		t.Fatal("failing rustup default: want error")
+	}
+	path := cargoProject(t, "version = 3\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n")
+	g, warns, err := Load(Found{Path: path, Ecosystem: "cargo", Format: "cargo", CargoMetadata: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "cargo metadata not run") {
+		t.Fatalf("warns = %v", warns)
+	}
+	if got := rootIDs(g); !reflect.DeepEqual(got, []string{"root:app"}) {
+		t.Fatalf("roots = %v", got)
 	}
 }

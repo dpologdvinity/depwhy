@@ -3,6 +3,7 @@ package lockfile
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -281,4 +282,58 @@ optional = false
 		t.Fatal(err)
 	}
 	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{"x": graph.Optional, "y": graph.Dev})
+}
+
+// Real Poetry 2.5 lockfile with PEP 735 [dependency-groups]: every group is
+// dev, and {include-group = "lint"} pulls lint's requirements into dev.
+func TestParsePoetryDependencyGroups(t *testing.T) {
+	path := "../../testdata/edge/poetry-dependency-groups/poetry.lock"
+	g, warns, err := ParsePoetry(path, readFixture(t, path))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("ParsePoetry: err=%v warns=%v", err, warns)
+	}
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{
+		"six": graph.Prod, "idna": graph.Optional, "certifi": graph.Dev, "toml": graph.Dev,
+	})
+}
+
+// TestParsePoetryGroupIncludeCycleOrphanAndSelfExtra checks that an
+// include-group cycle terminates, that a self-referencing extra ("proj[x]")
+// is not reported as unresolved, and that a locked package no root reaches is
+// warned about.
+func TestParsePoetryGroupIncludeCycleOrphanAndSelfExtra(t *testing.T) {
+	d := t.TempDir()
+	pyproject := `
+[project]
+name = "Proj"
+dependencies = []
+[project.optional-dependencies]
+x = ["idna"]
+all = ["proj[x]"]
+[dependency-groups]
+a = ["toml ; python_version >= '3.9'", {include-group = "b"}]
+b = [{include-group = "a"}, {include-group = "missing"}]
+`
+	lock := `
+[[package]]
+name = "idna"
+version = "3.0"
+[[package]]
+name = "toml"
+version = "0.10.2"
+[[package]]
+name = "orphan"
+version = "1.0"
+`
+	if err := os.WriteFile(filepath.Join(d, "pyproject.toml"), []byte(pyproject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g, warns, err := ParsePoetry(filepath.Join(d, "poetry.lock"), []byte(lock))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"orphan@1.0 is not reachable from any root"}; !reflect.DeepEqual(warns, want) {
+		t.Fatalf("warns = %v, want %v", warns, want)
+	}
+	assertKinds(t, rootKinds(t, g), map[string]graph.Kind{"idna": graph.Optional, "toml": graph.Dev})
 }
