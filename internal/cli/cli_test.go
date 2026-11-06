@@ -41,10 +41,43 @@ func TestUsageErrors(t *testing.T) {
 		{"a", "b"},
 		{"--bogus"},
 		{"-e", "ruby", "x"},
+		{"--heaviest=0"},
+		{"--heaviest=-1", "c"},
+		{"--heaviest", "0"},
+		{"--heaviest", "-3"},
+		{"--heaviest", "lodash"},
+		{"--heaviest=3", "5"},
+		{"--heaviest", "--online"},
+		{"--dupes", "--all"},
+		{"--remove", "--depth", "2", "a"},
+		{"--heaviest", "-d", "1"},
 	} {
 		code, _, errs := run(args...)
 		if code != 2 || !strings.Contains(errs, "depwhy:") {
 			t.Errorf("%v: got %d %q", args, code, errs)
+		}
+	}
+}
+
+// TestHeaviestLimit checks the documented `--heaviest [N]` forms: no value means
+// 10, and N may follow as `=N` or as the next word.
+func TestHeaviestLimit(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want int
+	}{
+		{[]string{"--heaviest"}, 10},
+		{[]string{"--heaviest=3"}, 3},
+		{[]string{"--heaviest", "3"}, 3},
+		{[]string{"--prod", "--heaviest", "7", "--json"}, 7},
+	} {
+		o := options{heaviest: 0}
+		fs := newFlagSet(&o, new(bool), new(bool))
+		if err := fs.Parse(tc.args); err != nil {
+			t.Fatalf("%v: %v", tc.args, err)
+		}
+		if msg := validate(&o, fs); msg != "" || o.heaviest != tc.want {
+			t.Errorf("%v: heaviest=%d msg=%q, want %d", tc.args, o.heaviest, msg, tc.want)
 		}
 	}
 }

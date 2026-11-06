@@ -66,8 +66,8 @@ errors (exit 2).
 | `-l`, `--lockfile` | string (repeatable) | none | Use these lockfile paths instead of auto-detection. The format comes from the file's base name (§4). |
 | `-e`, `--ecosystem` | string | all | Restrict to `npm`, `python`, or `cargo`. |
 | `--prod` | bool | false | Ignore dev edges from roots (and so everything reachable only through them). |
-| `-d`, `--depth` | int | 0 (unlimited) | Max levels printed in the why tree (target = level 0). |
-| `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). |
+| `-d`, `--depth` | int | 0 (unlimited) | Max levels printed in the why tree (target = level 0). Why mode only. |
+| `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). Why mode only. |
 | `--json` | bool | false | Emit JSON (§7.3) instead of text. |
 | `--no-color` | bool | false | Disable ANSI color. |
 | `--online` | bool | false | v0.2: look up advisories and deprecated/yanked status (§12). |
@@ -75,7 +75,9 @@ errors (exit 2).
 | `-V`, `--version` | bool | false | Print `depwhy <version>` and exit 0. |
 | `-h`, `--help` | bool | false | Print usage and exit 0. |
 
-`--remove` and `--dupes` together is a usage error.
+`--remove`, `--dupes` and `--heaviest` are mutually exclusive. `--depth` and `--all`
+shape the why tree, so combining them with another mode is a usage error rather
+than being silently ignored.
 
 ### 3.2 Package argument
 
@@ -586,7 +588,7 @@ directories present on disk, behavior is identical to v0.2.
 ### 13.2 Flags
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
-| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. |
+| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
 | `--venv` | string | `""` | Path to Python virtualenv (default `.venv` in target directory). |
 
 ### 13.3 Measurement rules

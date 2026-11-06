@@ -146,15 +146,15 @@ for Cargo. If nothing matches, depwhy suggests close names.
 | `--remove` | Removal-impact mode. The argument is a direct dependency. |
 | `--dupes` | List packages installed at more than one version. |
 | `--across` | With `--dupes`, aggregate versions across all loaded lockfiles. |
-| `--heaviest` | Rank direct dependencies by exclusive transitive size freed (default 10). |
+| `--heaviest [N]` | Rank the N (default 10) direct dependencies that free the most disk space; `--heaviest 5` or `--heaviest=5`. Not combinable with `--online`. |
 | `--venv` | Path to Python virtualenv (default `.venv` in target directory). |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
 | `-r`, `--recursive` | Search subdirectories, respecting `.gitignore`; cannot be combined with `-l`. |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |
 | `-e`, `--ecosystem` | Restrict to `npm`, `python`, `cargo`, or `go`. |
 | `--prod` | Ignore dev dependencies, and everything reachable only through them. |
-| `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). |
-| `--all` | Print all paths without the 10-path cap. |
+| `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). Why mode only. |
+| `--all` | Print all paths without the 10-path cap. Why mode only. |
 | `--json` | Emit JSON. |
 | `--online` | Look up security advisories (OSV) and deprecated/yanked status. This is the only flag that uses the network. |
 | `--refresh` | With `--online`, ignore cached answers. |
