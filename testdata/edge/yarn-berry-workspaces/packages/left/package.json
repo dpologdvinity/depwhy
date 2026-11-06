@@ -1,0 +1,11 @@
+{
+  "name": "left",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-number": "7.0.0",
+    "right": "workspace:*"
+  },
+  "devDependencies": {
+    "ms": "^2.1.0"
+  }
+}

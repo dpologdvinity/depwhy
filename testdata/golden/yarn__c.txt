@@ -4,6 +4,7 @@ c@1.0.0  npm · yarn.lock
 
 c@2.0.0  npm · yarn.lock
 └── b@1.0.0
+    └── app (root, dev)
 
 --- stderr
 

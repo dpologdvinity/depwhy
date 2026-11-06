@@ -19,13 +19,30 @@
         [
           {
             "name": "app",
-            "version": "0.0.0-use.local",
+            "version": "1.0.0",
             "root": true
           },
           {
             "name": "a",
             "version": "1.0.0",
             "kind": "prod"
+          },
+          {
+            "name": "d",
+            "version": "1.0.0",
+            "kind": "prod"
+          }
+        ],
+        [
+          {
+            "name": "app",
+            "version": "1.0.0",
+            "root": true
+          },
+          {
+            "name": "b",
+            "version": "1.0.0",
+            "kind": "dev"
           },
           {
             "name": "d",
@@ -41,6 +58,12 @@
           "name": "a",
           "version": "1.0.0",
           "kind": "prod"
+        },
+        {
+          "root": "app",
+          "name": "b",
+          "version": "1.0.0",
+          "kind": "dev"
         }
       ]
     }
