@@ -388,6 +388,7 @@ pre-releases.
 | `.deb`, `.rpm`, `.apk` | GoReleaser `nfpms`, attached to the release |
 | apt repository | `apt.yml`, described below |
 | npm | `npm/`: a zero-dependency launcher that downloads and checksum-verifies the release binary; published by `release.yml` |
+| Scoop | `dpologdvinity/scoop-bucket` (shared with other projects) pulls the latest release every hour: its `update.sh` writes `bucket/depwhy.json` from `checksums.txt`, then a Windows job installs the manifest and runs it. Nothing in this repository pushes there. |
 
 **The npm package** (`npm/`, published as `@kaitlynbassford/depwhy`: npm rejected the
 unscoped name as too similar to `dep-why`) contains no binary. `bin/depwhy.js` finds the native
