@@ -70,6 +70,8 @@ func TestHeaviestLimit(t *testing.T) {
 		{[]string{"--heaviest=3"}, 3},
 		{[]string{"--heaviest", "3"}, 3},
 		{[]string{"--prod", "--heaviest", "7", "--json"}, 7},
+		// pflag cannot tell --heaviest=10 from bare --heaviest: a trailing number wins.
+		{[]string{"--heaviest=10", "7"}, 7},
 	} {
 		o := options{heaviest: 0}
 		fs := newFlagSet(&o, new(bool), new(bool))

@@ -626,7 +626,7 @@ directories present on disk, behavior is identical to v0.2.
 ### 13.2 Flags
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
-| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
+| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. A number following `--heaviest` or `--heaviest=10` is taken as N, so `--heaviest=10 7` means 7 (the parser cannot tell `=10` from the default); after any other `--heaviest=N` it is a usage error, since heaviest mode takes no package. `--online` is a usage error with `--heaviest`. |
 | `--venv` | string | `""` | Path to Python virtualenv (default `.venv` next to the lockfile). A relative path resolves against the current directory, like any path flag, not against `-C`. One virtualenv serves every Python lockfile of the run. When the given path is not a virtualenv with a `site-packages` directory, one warning is printed per run and Python packages stay unmeasured; a missing default `.venv` is silent. |
 
 ### 13.3 Measurement rules
