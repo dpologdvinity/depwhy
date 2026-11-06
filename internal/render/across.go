@@ -15,7 +15,7 @@ func AcrossText(w io.Writer, ds []graph.AcrossDupe, style Style, notes map[*grap
 		return
 	}
 	for _, d := range ds {
-		fmt.Fprintln(w, style.Bold(fmt.Sprintf("%s  %s across %s", d.Name, plural(len(d.Versions), "version"), plural(d.Lockfiles, "lockfile"))))
+		fmt.Fprintln(w, style.Bold(fmt.Sprintf("%s  %s across %s", Escape(d.Name), plural(len(d.Versions), "version"), plural(d.Lockfiles, "lockfile"))))
 		for _, v := range d.Versions {
 			for _, src := range v.Sources {
 				s := style
@@ -24,7 +24,7 @@ func AcrossText(w io.Writer, ds []graph.AcrossDupe, style Style, notes map[*grap
 				if len(src.Leads) == 0 {
 					via = "(no direct dependency)"
 				}
-				fmt.Fprintf(w, "  %s%s  in %s via %s\n", v.Version, s.suffixOnline(src.Node), lockfileName(src.Graph), via)
+				fmt.Fprintf(w, "  %s%s  in %s via %s\n", Escape(v.Version), s.suffixOnline(src.Node), Escape(lockfileName(src.Graph)), via)
 			}
 		}
 	}

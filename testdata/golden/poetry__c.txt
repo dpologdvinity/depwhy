@@ -6,6 +6,7 @@ c@1.0.0  python · poetry.lock
 pulled in by 2 direct dependencies: a (prod), b (dev)
 
 c@2.0.0  python · poetry.lock
+not reachable from any root (an orphaned lockfile entry)
 
 --- stderr
 depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first

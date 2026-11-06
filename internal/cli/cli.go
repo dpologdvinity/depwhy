@@ -120,6 +120,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return usageErr(stderr, err.Error())
 	}
+	if o.completePackages {
+		// Called by the completion scripts with whatever the user typed so far,
+		// so the mode flags (--help and --version included, hence this comes
+		// first) and arguments are ignored. Only the lockfile selection counts,
+		// and nothing slow or networked runs on a Tab press.
+		o.online, o.goGraph, o.cargoMetadata = false, false, false
+		return execute(&o, stdout, stderr)
+	}
 	if help {
 		fmt.Fprint(stdout, usage+fs.FlagUsages()+notes)
 		return 0
@@ -128,13 +136,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		info, _ := debug.ReadBuildInfo()
 		fmt.Fprintf(stdout, "depwhy %s\n", resolveVersion(Version, info))
 		return 0
-	}
-	if o.completePackages {
-		// Called by the completion scripts with whatever the user typed so far,
-		// so the mode flags and arguments are ignored. Only the lockfile selection
-		// counts, and nothing slow or networked runs on a Tab press.
-		o.online, o.goGraph, o.cargoMetadata = false, false, false
-		return execute(&o, stdout, stderr)
 	}
 	if isCompletion(fs.Args()) {
 		if msg := writeCompletion(stdout, fs, fs.Arg(1)); msg != "" {
@@ -236,13 +237,16 @@ type session struct {
 
 	scanner *size.Scanner                            // shared by every size provider
 	sizers  map[*graph.Graph]func(int) (int64, bool) // size provider per graph, see sizeOf
+
+	venvWarned bool // the unusable --venv was reported; once per run is enough
 }
 
 // warn prints a warning to stderr and keeps it for the JSON document. Warnings
-// never change the exit code.
+// never change the exit code. Warnings often quote the lockfile, so the
+// terminal copy is escaped; JSON keeps the exact text.
 func (s *session) warn(msg string) {
 	s.warnings = append(s.warnings, msg)
-	fmt.Fprintf(s.stderr, "depwhy: warning: %s\n", msg)
+	fmt.Fprintf(s.stderr, "depwhy: warning: %s\n", render.Escape(msg))
 }
 
 // execute runs a validated invocation: it finds and loads the lockfiles, then
@@ -252,7 +256,8 @@ func (s *session) warn(msg string) {
 func execute(o *options, stdout, stderr io.Writer) int {
 	s := &session{o: o, stdout: stdout, stderr: stderr}
 	fail := func(format string, a ...any) int {
-		fmt.Fprintf(stderr, "depwhy: "+format+"\n", a...)
+		// Parse errors may quote the lockfile, so escape them for the terminal.
+		fmt.Fprintf(stderr, "depwhy: %s\n", render.Escape(fmt.Sprintf(format, a...)))
 		return 2
 	}
 
@@ -404,10 +409,16 @@ func (s *session) sizeOf(g *graph.Graph) func(int) (int64, bool) {
 			return s.scanner.NPMSize(dir, n.InstallPath, n.Name, n.Version)
 		}
 	case "python":
-		if site, venv, err := size.FindPythonSitePackages(dir, s.o.venv); err == nil {
+		site, venv, err := size.FindPythonSitePackages(dir, s.o.venv)
+		switch {
+		case err == nil:
 			measure = func(n graph.Node) (int64, error) {
 				return s.scanner.PythonSize(site, venv, n.Name, n.Version)
 			}
+		case s.o.venv != "" && !s.venvWarned:
+			// A missing default .venv is normal; an explicit --venv is not.
+			s.venvWarned = true
+			s.warn(fmt.Sprintf("--venv: %v; Python packages are not measured", err))
 		}
 	}
 	type answer struct {
@@ -570,13 +581,14 @@ func (s *session) notFound(doc *render.Doc, name string, devOnly bool) int {
 	case len(installed) > 0:
 		msg += " (installed: " + strings.Join(installed, ", ") + ")"
 	}
-	fmt.Fprintf(s.stderr, "depwhy: %s\n", msg)
+	// The query, labels and names may hold control characters: escape the lines.
+	fmt.Fprintf(s.stderr, "depwhy: %s\n", render.Escape(msg))
 	sugg := []string{}
 	if len(installed) == 0 {
 		sugg = graph.Suggest(s.graphs, name)
 	}
 	if len(sugg) > 0 {
-		fmt.Fprintf(s.stderr, "did you mean: %s\n", strings.Join(sugg, ", "))
+		fmt.Fprintf(s.stderr, "did you mean: %s\n", render.Escape(strings.Join(sugg, ", ")))
 	}
 	if s.o.json {
 		doc.SetSuggestions(sugg)

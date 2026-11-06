@@ -181,3 +181,22 @@ func TestNoteTextDropsControlCharacters(t *testing.T) {
 		t.Fatalf("printable text should remain: %q", got)
 	}
 }
+
+// TestEscape checks that Escape shows control and invisible characters (CSI,
+// OSC with BEL, CR, DEL, C1, bidi override, zero-width space) as Go escapes and
+// leaves printable text, including non-ASCII letters, alone.
+func TestEscape(t *testing.T) {
+	for in, want := range map[string]string{
+		"lodash":              "lodash",
+		"1.0.0\x1b[2J":        `1.0.0\x1b[2J`,
+		"\x1b]52;c;aGk=\a":    `\x1b]52;c;aGk=\a`,
+		"a\rb\tc\x7f":         `a\rb\tc\x7f`,
+		"rtl\u202eevil\u200b": `rtl\u202eevil\u200b`,
+		"csi\u009b":           `csi\u009b`,
+		"café ü 包":            "café ü 包",
+	} {
+		if got := Escape(in); got != want {
+			t.Errorf("Escape(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

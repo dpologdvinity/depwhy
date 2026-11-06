@@ -303,6 +303,10 @@ pulled in by 2 direct dependencies: a (prod), b (dev)
 - Tree drawing uses `├── `, `└── `, `│   `, and `    `.
 - Root leaf: `<label> (root, <kind>)`, where kind is the `root → direct` edge kind in lowercase. If the target is itself direct, its children are only root leaves.
 - Footer: if the target is direct, `direct dependency of <root label> (<kind>)`. Otherwise, if there are two or more leads, `pulled in by N direct dependencies: x (kind), y (kind)`, with leads sorted by name. Otherwise, no footer.
+- A target reachable from no root (an orphaned lockfile entry) has no tree and no
+  footer: print `not reachable from any root (an orphaned lockfile entry)` under
+  its header. It was found, so the exit code stays 0. `--remove` on it says it is
+  not a direct dependency.
 - Print a blank line between trees.
 
 ### 7.2 Remove and Dupes (text)
@@ -379,6 +383,14 @@ Use ANSI color only when stdout is a terminal (`fi.Mode()&os.ModeCharDevice != 0
 `NO_COLOR` is unset or empty, and `--no-color` is not set. Colors: header bold,
 root labels cyan, `(dev)`/`dev` kinds dim, markers `(*)`/`(cycle)` dim. Golden tests
 run with color off.
+
+### 7.5 Untrusted text
+
+A lockfile may be hostile, so text output never prints its strings raw. Package
+names, versions, root and lockfile labels, warnings and the not-found lines on
+stderr show every non-printable rune (escape sequences, CR, BEL, DEL, C1 controls,
+invisible formatting such as bidirectional overrides) as its Go escape, e.g. `\x1b`
+or `\u202e`. JSON carries the exact strings; `encoding/json` escapes them.
 
 ## 8. Lockfile parsing (package `internal/lockfile`)
 
@@ -614,8 +626,8 @@ directories present on disk, behavior is identical to v0.2.
 ### 13.2 Flags
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
-| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
-| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` next to the lockfile). |
+| `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. A number following `--heaviest` or `--heaviest=10` is taken as N, so `--heaviest=10 7` means 7 (the parser cannot tell `=10` from the default); after any other `--heaviest=N` it is a usage error, since heaviest mode takes no package. `--online` is a usage error with `--heaviest`. |
+| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` next to the lockfile). A relative path resolves against the current directory, like any path flag, not against `-C`. One virtualenv serves every Python lockfile of the run. When the given path is not a virtualenv with a `site-packages` directory, one warning is printed per run and Python packages stay unmeasured; a missing default `.venv` is silent. |
 
 ### 13.3 Measurement rules
 - npm: the size is the sum of the regular files in the install directory,
@@ -982,8 +994,14 @@ every word typed before the cursor. It loads the lockfiles those words select
 (`-C`, `-l`, `-e`, `-r`), ignores the mode flags and positional arguments, and
 prints each non-root package name once, sorted, one per line. It never makes
 network requests and never runs `go` or `cargo` (`--online`, `--go-graph` and
-`--cargo-metadata` are ignored). Errors exit 2 like any run; the scripts discard
-stderr, so a directory without a lockfile simply completes nothing.
+`--cargo-metadata` are ignored; so are `--help` and `--version`). Errors exit 2
+like any run; the scripts discard stderr, so a directory without a lockfile simply
+completes nothing.
+
+bash hands the completion function the words as typed and splits `--flag=value`
+at `=`. The bash script therefore strips one level of quoting (`'…'`, `"…"`,
+backslash) from each word and joins `--flag`, `=`, `value` again before calling
+`--complete-packages`, by scanning characters, never with `eval`.
 
 Package names are untrusted input. The scripts must never evaluate them: bash
 reads them line by line (not through `compgen -W`, which expands its word list)
