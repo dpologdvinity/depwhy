@@ -688,7 +688,8 @@ Walk rules:
   applied. Priority warnings in descendants are prefixed with the directory's
   relative path. A directory need not contain a lockfile to be traversed.
 - Always prune `.git`, `node_modules`, `.venv`, `venv`, `target`, `dist`,
-  `build`, `vendor`, `__pycache__`, and `.tox` below the starting directory.
+  `build`, `vendor`, `__pycache__`, `.tox`, and `testdata` (test fixtures, which
+  the Go tool also skips) below the starting directory.
   Ignore negations cannot reopen these directories.
 - Read `.gitignore` in each visited directory. Rules are relative to the file's
   directory, inherited by descendants, and applied in order (last match wins).

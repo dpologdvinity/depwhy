@@ -227,8 +227,8 @@ If multiple lockfiles are present for an ecosystem, the higher-priority file is 
 By default, only the given directory is checked. Add `-r` to find nested projects.
 Each directory applies the same priority independently. Recursive discovery skips
 `.git`, `node_modules`, `.venv`, `venv`, `target`, `dist`, `build`, `vendor`,
-`__pycache__` and `.tox`, honors nested `.gitignore` files, and does not follow
-directory symlinks. Parent/global Git ignores and the Git index are not consulted.
+`__pycache__`, `.tox` and `testdata` (test fixtures, which the Go tool also
+skips), honors nested `.gitignore` files, and does not follow directory symlinks. Parent/global Git ignores and the Git index are not consulted.
 Output identifies each lockfile by its path relative to `-C`, including in JSON.
 Installed sizes use each discovered project's own install directory.
 

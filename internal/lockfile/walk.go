@@ -63,10 +63,12 @@ func DetectRecursive(dir, ecosystem string) ([]Found, []string, error) {
 	return found, warns, nil
 }
 
-// skipDir lists dependency, VCS and build directories that are always pruned.
+// skipDir lists dependency, VCS, build and test-fixture directories that are
+// always pruned. testdata is skipped as the Go tool does: it holds fixtures,
+// not projects.
 func skipDir(name string) bool {
 	switch name {
-	case ".git", "node_modules", ".venv", "venv", "target", "dist", "build", "vendor", "__pycache__", ".tox":
+	case ".git", "node_modules", ".venv", "venv", "target", "dist", "build", "vendor", "__pycache__", ".tox", "testdata":
 		return true
 	}
 	return false
