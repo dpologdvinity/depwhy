@@ -7,7 +7,6 @@ __metadata:
   resolution: "app@workspace:."
   dependencies:
     a: "npm:^1.0.0"
-  devDependencies:
     b: "npm:^1.0.0"
   languageName: unknown
   linkType: soft

@@ -1,7 +1,7 @@
 npm · yarn.lock
 c  2 versions
   1.0.0  via a (prod)
-  2.0.0  via 
+  2.0.0  via b (dev)
 
 --- stderr
 
