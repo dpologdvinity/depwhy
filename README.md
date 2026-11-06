@@ -45,6 +45,23 @@ c  2 versions
 - **Health info (opt-in)**: with `--online`, packages show known security advisories and deprecated or yanked status.
 - **Scriptable**: `--json` gives a stable, documented output.
 
+### Compared with the package managers' own commands
+
+Each package manager can answer "why" for its own lockfile. depwhy asks the same
+question everywhere, and adds removal impact:
+
+| | depwhy | `npm ls` | `pnpm why` | `uv tree --invert` | `cargo tree -i` |
+|---|---|---|---|---|---|
+| Ecosystems | npm, pnpm, Yarn, Bun, uv, Poetry, Cargo, Go | npm | pnpm | uv | Cargo |
+| Works from the lockfile alone | yes | with `--package-lock-only` | yes | yes | no: downloads crate manifests |
+| Removal impact (`--remove`) | yes | no | no | no | no |
+| Duplicate versions (`--dupes`) | yes, also across projects | no | no | no | `cargo tree -d` |
+| JSON output | yes | yes | yes | yes | no |
+| Needs the package manager installed | no | yes | yes | yes | yes |
+
+The package managers' own commands know details depwhy leaves out, such as Cargo
+features and build edges and Python platform markers (see [Limitations](#limitations)).
+
 ## Install
 
 With Go 1.26 or newer:
@@ -75,7 +92,14 @@ npm install -g @kaitlynbassford/depwhy   # installs the `depwhy` command
 npx @kaitlynbassford/depwhy lodash       # or run it once
 ```
 
-The package is scoped because npm rejected the plain name `depwhy` as too similar to an existing package.
+With [Scoop](https://scoop.sh) on Windows (amd64 and arm64):
+
+```powershell
+scoop bucket add dpologdvinity https://github.com/dpologdvinity/scoop-bucket
+scoop install depwhy
+```
+
+The npm package is scoped because npm rejected the plain name `depwhy` as too similar to an existing package.
 
 The Homebrew cask removes macOS's quarantine flag from the binary after install, because
 the binary is not Apple-notarized.

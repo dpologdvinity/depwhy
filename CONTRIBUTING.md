@@ -142,7 +142,8 @@ binaries, Linux packages and the Homebrew cask with GoReleaser, republishes the 
 repository, and publishes the npm package. Tags with a suffix such as `v0.2.0-rc.1`
 are published as pre-releases and do not update Homebrew, apt or npm. A missing
 `APT_GPG_PRIVATE_KEY`, `NPM_TOKEN` or `HOMEBREW_TAP_GITHUB_TOKEN` skips that channel
-with a warning instead of failing the release.
+with a warning instead of failing the release. The Scoop manifest is not published
+from here: `dpologdvinity/scoop-bucket` picks up the new release within the hour.
 
 Repository secrets the release uses: `HOMEBREW_TAP_GITHUB_TOKEN` (Homebrew) and
 `APT_GPG_PRIVATE_KEY` (signs the apt repository) and `NPM_TOKEN` (publishes the
