@@ -1,0 +1,10 @@
+removing b@1.0.0 (direct, dev) from app  npm · package-lock.json
+would remove 2 packages (freeing ~812 B):
+  b@1.0.0 (512 B)
+  c@2.0.0 (300 B)
+still needed by others (1):
+  d@1.0.0 (100 B)  via a@1.0.0
+
+--- stderr
+
+--- exit=0

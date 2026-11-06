@@ -136,15 +136,16 @@ type keptJSON struct {
 
 // removeJSON is one result of remove mode.
 type removeJSON struct {
-	Ecosystem      string     `json:"ecosystem"`
-	Lockfile       string     `json:"lockfile"`
-	Package        pkgJSON    `json:"package"`
-	Direct         bool       `json:"direct"`
-	StillNeeded    bool       `json:"still_needed"`
-	FreedSizeBytes *int64     `json:"freed_size_bytes,omitempty"`
-	Freed          []pkgJSON  `json:"freed"`
-	Kept           []keptJSON `json:"kept"`
-	RequiredBy     []leadJSON `json:"required_by"`
+	Ecosystem       string     `json:"ecosystem"`
+	Lockfile        string     `json:"lockfile"`
+	Package         pkgJSON    `json:"package"`
+	Direct          bool       `json:"direct"`
+	StillNeeded     bool       `json:"still_needed"`
+	FreedSizeBytes  *int64     `json:"freed_size_bytes,omitempty"` // absent when no freed package was measured
+	FreedUnmeasured *int       `json:"freed_unmeasured,omitempty"` // present exactly when FreedSizeBytes is
+	Freed           []pkgJSON  `json:"freed"`
+	Kept            []keptJSON `json:"kept"`
+	RequiredBy      []leadJSON `json:"required_by"`
 }
 
 // dupeVersionJSON is one version of a duplicated package.
@@ -230,6 +231,9 @@ func RemoveJSONWithSizes(g *graph.Graph, r graph.RemoveResult, notes Notes, size
 		Direct: !r.NotDirect, StillNeeded: r.StillNeeded, FreedSizeBytes: r.FreedSize,
 		Freed: []pkgJSON{}, Kept: []keptJSON{}, RequiredBy: leadsJSON(g, r.RequiredBy),
 	}
+	if r.FreedSize != nil {
+		out.FreedUnmeasured = &r.FreedUnmeasured
+	}
 	for _, n := range r.Freed {
 		out.Freed = append(out.Freed, pkgWith(g, n, notes, sizes))
 	}
@@ -264,11 +268,14 @@ func DupesJSON(g *graph.Graph, ds []graph.Dupe, notes Notes) any {
 	return out
 }
 
+// heaviestItemJSON is one ranked direct dependency. Items always carry a size:
+// a dependency with no measurable freed package is not ranked at all.
 type heaviestItemJSON struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	FreedSize  int64  `json:"freed_size_bytes"`
-	FreedCount int    `json:"freed_count"`
+	Name            string `json:"name"`
+	Version         string `json:"version"`
+	FreedSize       int64  `json:"freed_size_bytes"`
+	FreedCount      int    `json:"freed_count"`
+	FreedUnmeasured int    `json:"freed_unmeasured"`
 }
 
 type heaviestJSON struct {
@@ -287,10 +294,11 @@ func HeaviestJSON(g *graph.Graph, items []graph.HeaviestItem) any {
 	for _, it := range items {
 		n := g.Nodes[it.Target]
 		out.Heaviest = append(out.Heaviest, heaviestItemJSON{
-			Name:       n.Name,
-			Version:    n.Version,
-			FreedSize:  it.FreedSize,
-			FreedCount: it.FreedCount,
+			Name:            n.Name,
+			Version:         n.Version,
+			FreedSize:       it.FreedSize,
+			FreedCount:      it.FreedCount,
+			FreedUnmeasured: it.FreedUnmeasured,
 		})
 	}
 	return out

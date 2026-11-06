@@ -68,27 +68,20 @@ func TestMonorepoGolden(t *testing.T) {
 
 func TestRecursiveSizes(t *testing.T) {
 	dir := stageFixture(t, project("monorepo"))
-	for name, content := range map[string]string{
-		"web/node_modules/tool/data":          "tool",
-		"web/node_modules/shared/data":        "shared",
-		"web/node_modules/only-across/data":   "only",
-		"admin/node_modules/only-across/data": "admin-size",
-	} {
-		p := filepath.Join(dir, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// Each subproject is measured in its own directory.
+	install(t, dir, "web/node_modules/tool", "tool", "1.0.0", 100)
+	install(t, dir, "web/node_modules/shared", "shared", "1.0.0", 60)
+	install(t, dir, "web/node_modules/only-across", "only-across", "1.0.0", 40)
+	install(t, dir, "admin/node_modules/only-across", "only-across", "2.0.0", 70)
 	code, out, errs := run("-C", dir, "-r", "--remove", "--json", "tool")
-	if code != 0 || errs != "" || !strings.Contains(out, `"freed_size_bytes": 10`) {
+	if code != 0 || errs != "" || !strings.Contains(out, `"freed_size_bytes": 160`) {
 		t.Fatalf("remove sizes = %d %s %s", code, out, errs)
 	}
 	code, out, errs = run("-C", dir, "-r", "--heaviest", "--json")
-	if code != 0 || errs != "" || !strings.Contains(out, `"freed_size_bytes": 10`) || !strings.Contains(out, `"freed_size_bytes": 4`) {
-		t.Fatalf("heaviest sizes = %d %s %s", code, out, errs)
+	for _, want := range []string{`"freed_size_bytes": 160`, `"freed_size_bytes": 40`, `"freed_size_bytes": 70`} {
+		if code != 0 || errs != "" || !strings.Contains(out, want) {
+			t.Fatalf("heaviest sizes (want %s) = %d %s %s", want, code, out, errs)
+		}
 	}
 }
 

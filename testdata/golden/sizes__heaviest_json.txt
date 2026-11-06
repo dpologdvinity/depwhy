@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "mode": "heaviest",
+  "query": null,
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "package-lock.json",
+      "heaviest": [
+        {
+          "name": "a",
+          "version": "1.0.0",
+          "freed_size_bytes": 3072,
+          "freed_count": 2,
+          "freed_unmeasured": 0
+        },
+        {
+          "name": "b",
+          "version": "1.0.0",
+          "freed_size_bytes": 812,
+          "freed_count": 2,
+          "freed_unmeasured": 0
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0
