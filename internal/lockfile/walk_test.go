@@ -31,7 +31,7 @@ func TestDetectRecursive(t *testing.T) {
 		"web/bun.lock": "", "web/pnpm-lock.yaml": "", "api/Cargo.lock": "",
 		"worker/poetry.lock": "", "worker/uv.lock": "",
 	})
-	for _, skip := range []string{".git", "node_modules", ".venv", "venv", "target", "dist", "build", "vendor", "__pycache__", ".tox"} {
+	for _, skip := range []string{".git", "node_modules", ".venv", "venv", "target", "dist", "build", "vendor", "__pycache__", ".tox", "testdata"} {
 		writeTree(t, dir, map[string]string{"web/" + skip + "/nested/package-lock.json": ""})
 	}
 	found, warns, err := DetectRecursive(dir, "")

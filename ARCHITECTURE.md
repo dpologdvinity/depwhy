@@ -116,7 +116,7 @@ is also the output order.
 
 `DetectRecursive` (`walk.go`) reuses the same per-directory selection logic while
 visiting directories in lexical depth-first order. It prunes dependency/build
-directories and applies inherited, directory-scoped `.gitignore` rules, including
+directories and `testdata` (fixtures, as the Go tool treats it) and applies inherited, directory-scoped `.gitignore` rules, including
 negations and `**`. Directory symlinks are not followed. It returns paths relative
 to the scan root; the CLI joins those paths before loading to preserve adjacent
 manifest reads. `Graph.Lockfile` keeps the filesystem path, while the optional
@@ -135,7 +135,16 @@ The strings are warnings. They never fail a run.
 | `uv.lock` | `[manifest].members`, else the `.` project | by name, narrowed by version then source |
 | `poetry.lock` | `pyproject.toml` or root directory | `[[package]]` tables; direct kinds from `pyproject.toml` groups and extras, else the lockfile's `groups` or `category` |
 | `Cargo.lock` v3/v4 | packages with no `source` (or precise workspace members via `--cargo-metadata`) | by name, narrowed by version then source (or exact Cargo metadata resolve nodes) |
-| `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` |
+| `go.mod` | `module` directive | `require` directives (with `// indirect` marked Indirect), optionally refined with `go mod graph` reduced to the MVS-selected versions; `replace` never renames a module |
+
+`--go-graph` and `--cargo-metadata` are the only places depwhy runs another
+program. `tool.go`'s `runTool` runs `go mod graph` or `cargo metadata` in the
+project directory with a timeout and an environment that keeps the tool
+offline and read-only (`GOTOOLCHAIN=local GOPROXY=off GOFLAGS=-mod=readonly
+GOWORK=off`; `cargo --locked --offline` with rustup and rustc overrides). Any
+failure becomes a warning and the parser falls back to the file alone. The
+tools still read project configuration, so these flags are documented as for
+trusted projects only.
 
 Things every parser does the same way:
 

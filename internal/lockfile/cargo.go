@@ -3,7 +3,7 @@ package lockfile
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -167,12 +167,39 @@ func ParseCargoMetadata(path string, data []byte) (*graph.Graph, []string, error
 	return finish(b, warns)
 }
 
+// parseCargoWithCLI runs `cargo metadata` for the Cargo.toml next to lockPath
+// (SPEC §14.2.5). It runs in that directory, so cargo reads the project's own
+// configuration, with --locked and --offline so it never rewrites Cargo.lock
+// or touches the network. On failure it returns a warning and the error; the
+// caller then falls back to ParseCargo.
 func parseCargoWithCLI(lockPath string) (*graph.Graph, []string, error) {
-	manifestPath := filepath.Join(filepath.Dir(lockPath), "Cargo.toml")
-	cmd := exec.Command("cargo", "metadata", "--format-version", "1", "--manifest-path", manifestPath)
-	out, err := cmd.Output()
+	dir := filepath.Dir(lockPath)
+	out, err := runTool(dir, cargoEnv(), "cargo", "metadata", "--locked", "--offline", "--format-version", "1",
+		"--manifest-path", filepath.Join(dir, "Cargo.toml"))
 	if err != nil {
 		return nil, []string{fmt.Sprintf("cargo metadata failed: %v; falling back to Cargo.lock", err)}, err
 	}
 	return ParseCargoMetadata(lockPath, out)
+}
+
+// cargoEnv returns environment overrides that stop the project from choosing
+// the binaries cargo runs: a rust-toolchain.toml (rustup would run its `path`
+// toolchain, or download its channel) and the rustc, rustc-wrapper and
+// rustc-workspace-wrapper settings of .cargo/config.toml, which cargo metadata
+// executes to query the compiler. Values the user set in the environment are
+// kept. Other project configuration is still read; see the README's warning.
+func cargoEnv() []string {
+	env := []string{"RUSTC_WRAPPER=", "RUSTC_WORKSPACE_WRAPPER="}
+	if _, ok := os.LookupEnv("RUSTC"); !ok {
+		env = append(env, "RUSTC=rustc")
+	}
+	if _, ok := os.LookupEnv("RUSTUP_TOOLCHAIN"); !ok {
+		// `rustup default` ignores override files, so this is the user's own choice.
+		if out, err := runTool("", nil, "rustup", "default"); err == nil {
+			if f := strings.Fields(string(out)); len(f) > 0 {
+				env = append(env, "RUSTUP_TOOLCHAIN="+f[0])
+			}
+		}
+	}
+	return env
 }

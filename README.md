@@ -156,11 +156,26 @@ for Cargo. If nothing matches, depwhy suggests close names.
 | `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). Why mode only. |
 | `--all` | Print all paths without the 10-path cap. Why mode only. |
 | `--json` | Emit JSON. |
+| `--go-graph` | For `go.mod`, add transitive edges from `go mod graph` (needs `go` on PATH). Runs offline; see the note below. |
+| `--cargo-metadata` | For `Cargo.lock`, use `cargo metadata` for dev/build edges and workspace members (needs `cargo` on PATH). Runs offline; see the note below. |
 | `--online` | Look up security advisories (OSV) and deprecated/yanked status. This is the only flag that uses the network. |
 | `--refresh` | With `--online`, ignore cached answers. |
 | `--no-color` | Disable ANSI color. Color is also off when output is not a terminal or `NO_COLOR` is set. |
 | `-V`, `--version` | Print the version. |
 | `-h`, `--help` | Print usage. |
+
+`--go-graph` and `--cargo-metadata` are the only flags that run another program.
+depwhy runs `go mod graph` or `cargo metadata` in the project's directory with a
+60-second timeout, kept offline and read-only (`GOTOOLCHAIN=local`,
+`GOPROXY=off`, `-mod=readonly`; `cargo --locked --offline`), so nothing is
+downloaded and no `go.mod`, `go.sum` or `Cargo.lock` is changed. If the tool is
+missing or fails, for example because a module or crate is not in the local
+cache, depwhy warns and reads the file alone. **Use them only on projects you
+trust**: go and cargo read the project's own configuration. depwhy stops a
+`rust-toolchain.toml` or the `rustc`/wrapper settings of `.cargo/config.toml`
+from choosing which binaries run (by setting `RUSTUP_TOOLCHAIN` to your
+`rustup default`, `RUSTC=rustc` and empty `RUSTC_WRAPPER`), but cannot vet
+everything else cargo reads.
 
 ### Reading the output
 
@@ -250,8 +265,8 @@ If multiple lockfiles are present for an ecosystem, the higher-priority file is 
 By default, only the given directory is checked. Add `-r` to find nested projects.
 Each directory applies the same priority independently. Recursive discovery skips
 `.git`, `node_modules`, `.venv`, `venv`, `target`, `dist`, `build`, `vendor`,
-`__pycache__` and `.tox`, honors nested `.gitignore` files, and does not follow
-directory symlinks. Parent/global Git ignores and the Git index are not consulted.
+`__pycache__`, `.tox` and `testdata` (test fixtures, which the Go tool also
+skips), honors nested `.gitignore` files, and does not follow directory symlinks. Parent/global Git ignores and the Git index are not consulted.
 Output identifies each lockfile by its path relative to `-C`, including in JSON.
 Installed sizes use each discovered project's own install directory.
 
@@ -271,7 +286,7 @@ individual files. It does not enable recursion itself. Its JSON adds
 ## Limitations
 
 - **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots. Use `--cargo-metadata` when cargo is available on PATH for precise dependency discrimination and workspace resolution.
-- **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`.
+- **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`; only the versions minimal version selection picks are kept. A `replace` keeps the dependency's module path; only a same-path version pin changes the version shown.
 - **Poetry**: direct dependencies are classified from `pyproject.toml`: the `main` group and `[project].dependencies` are `prod`, every other group (dev, test, lint, docs, ...) is `dev`, and extras are `optional`. Without `pyproject.toml`, depwhy falls back to the lockfile's `groups` (Poetry 2.x) or `category` (before 1.5); Poetry 1.5-1.8 lockfiles record neither, so every package then counts as `prod`.
 - **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.

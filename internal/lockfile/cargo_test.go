@@ -1,7 +1,12 @@
 package lockfile
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -208,5 +213,78 @@ func TestParseCargoMetadata(t *testing.T) {
 	}
 	if outKinds["criterion"] != "dev" {
 		t.Errorf("criterion kind = %s, want dev", outKinds["criterion"])
+	}
+}
+
+// cargoProject writes a package "app" with a path dependency "sub" and the
+// given Cargo.lock into a temporary directory and returns the lockfile path.
+func cargoProject(t *testing.T, lock string) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"Cargo.toml":     "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nsub = { path = \"sub\" }\n",
+		"src/main.rs":    "fn main() {}\n",
+		"sub/Cargo.toml": "[package]\nname = \"sub\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+		"sub/src/lib.rs": "",
+		"Cargo.lock":     lock,
+	})
+	return filepath.Join(dir, "Cargo.lock")
+}
+
+// TestCargoMetadataLeavesStaleLockUntouched checks that --cargo-metadata never
+// rewrites a Cargo.lock that is out of date with Cargo.toml (here sub is
+// missing): cargo runs with --locked, fails, and depwhy falls back to the
+// lockfile with a warning.
+func TestCargoMetadataLeavesStaleLockUntouched(t *testing.T) {
+	requireTool(t, "cargo")
+	lock := "version = 3\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n"
+	path := cargoProject(t, lock)
+	g, warns, err := Load(Found{Path: path, Ecosystem: "cargo", Format: "cargo", CargoMetadata: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "cargo metadata failed") {
+		t.Fatalf("warns = %v", warns)
+	}
+	if got := rootIDs(g); !reflect.DeepEqual(got, []string{"root:app"}) {
+		t.Fatalf("roots = %v", got)
+	}
+	if got := readFixture(t, path); !bytes.Equal(got, []byte(lock)) {
+		t.Fatalf("Cargo.lock was modified:\n%s", got)
+	}
+}
+
+// TestCargoMetadataRunsInProject checks that cargo metadata reads the project
+// next to the lockfile (not the current directory), that sub is a dependency
+// rather than a root as in the plain Cargo.lock parse, and that the project's
+// rust-toolchain.toml and .cargo/config.toml cannot choose the binaries run.
+func TestCargoMetadataRunsInProject(t *testing.T) {
+	requireTool(t, "cargo")
+	lock := "version = 3\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"sub\",\n]\n\n[[package]]\nname = \"sub\"\nversion = \"0.1.0\"\n"
+	path := cargoProject(t, lock)
+	dir := filepath.Dir(path)
+	marker := filepath.Join(dir, "pwned")
+	if runtime.GOOS != "windows" {
+		writeTree(t, dir, map[string]string{
+			"evil/bin/cargo":      "#!/bin/sh\ntouch '" + marker + "'\nexit 1\n",
+			"rust-toolchain.toml": "[toolchain]\npath = '" + filepath.Join(dir, "evil") + "'\n",
+			".cargo/config.toml":  "[build]\nrustc = 'evil/bin/cargo'\nrustc-wrapper = 'evil/bin/cargo'\nrustc-workspace-wrapper = 'evil/bin/cargo'\n",
+		})
+		if err := os.Chmod(filepath.Join(dir, "evil/bin/cargo"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g, warns, err := Load(Found{Path: path, Ecosystem: "cargo", Format: "cargo", CargoMetadata: true})
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("err=%v warns=%v", err, warns)
+	}
+	if got := edgeStrings(g); !reflect.DeepEqual(got, []string{"root:app -> sub@0.1.0 prod"}) {
+		t.Fatalf("edges = %v", got)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("cargo metadata ran a binary chosen by the project")
+	}
+	if got := readFixture(t, path); !bytes.Equal(got, []byte(lock)) {
+		t.Fatalf("Cargo.lock was modified:\n%s", got)
 	}
 }

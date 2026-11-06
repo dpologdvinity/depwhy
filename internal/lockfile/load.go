@@ -3,7 +3,9 @@
 // Detect and FromPaths decide which files to read (SPEC §4), Load dispatches
 // to the parser for a file's format, and each ParseX function turns the bytes
 // of one format into a graph. Parsers are pure: they read only the data they
-// are given, apart from pnpm, which also reads package.json for root labels.
+// are given, apart from pnpm, which also reads package.json for root labels,
+// and the opt-in --go-graph and --cargo-metadata modes, which run `go mod graph`
+// and `cargo metadata` offline in the project directory (tool.go).
 package lockfile
 
 import (
