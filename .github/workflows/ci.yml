@@ -95,6 +95,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zsh fish
       - name: go test
         shell: bash
+        env:
+          # Fail instead of skipping the shell completion tests if a shell is missing.
+          DEPWHY_REQUIRE_SHELLS: ${{ runner.os == 'Linux' && '1' || '' }}
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
       - name: coverage report and gate
         if: matrix.os == 'ubuntu-latest' && matrix.go == 'oldest'

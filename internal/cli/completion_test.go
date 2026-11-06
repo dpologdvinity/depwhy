@@ -75,6 +75,21 @@ func TestCompletePackages(t *testing.T) {
 	}
 }
 
+// lookShell finds a shell for the completion tests. A missing shell skips the
+// test, unless DEPWHY_REQUIRE_SHELLS=1 (set by CI on Linux, which installs all
+// three), where a skip would silently hide the coverage.
+func lookShell(t *testing.T, name string) string {
+	t.Helper()
+	path, err := exec.LookPath(name)
+	if err != nil {
+		if os.Getenv("DEPWHY_REQUIRE_SHELLS") == "1" {
+			t.Fatalf("%s not installed, but DEPWHY_REQUIRE_SHELLS=1", name)
+		}
+		t.Skipf("%s not installed", name)
+	}
+	return path
+}
+
 // hostileLock is a package-lock.json whose package names would run a command if
 // a completion script evaluated them.
 const hostileLock = `{"name":"app","version":"1.0.0","lockfileVersion":3,"packages":{
@@ -125,10 +140,7 @@ func runShell(t *testing.T, dir string, env []string, shell string, args ...stri
 // TestBashCompletion sources the bash script and calls its completion function
 // the way bash does on Tab.
 func TestBashCompletion(t *testing.T) {
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not installed")
-	}
+	bash := lookShell(t, "bash")
 	dir, env := shellProject(t)
 	_, script, _ := run("completion", "bash")
 	if err := os.WriteFile(filepath.Join(dir, "depwhy.bash"), []byte(script), 0o644); err != nil {
@@ -159,10 +171,7 @@ lodash
 // TestZshCompletionSyntax checks that zsh parses the zsh script. Driving zsh's
 // completion system needs a terminal, so the behavior is checked by hand.
 func TestZshCompletionSyntax(t *testing.T) {
-	zsh, err := exec.LookPath("zsh")
-	if err != nil {
-		t.Skip("zsh not installed")
-	}
+	zsh := lookShell(t, "zsh")
 	dir, env := shellProject(t)
 	_, script, _ := run("completion", "zsh")
 	if err := os.WriteFile(filepath.Join(dir, "_depwhy"), []byte(script), 0o644); err != nil {
@@ -173,10 +182,7 @@ func TestZshCompletionSyntax(t *testing.T) {
 
 // TestFishCompletion loads the fish script and asks fish what it would complete.
 func TestFishCompletion(t *testing.T) {
-	fish, err := exec.LookPath("fish")
-	if err != nil {
-		t.Skip("fish not installed")
-	}
+	fish := lookShell(t, "fish")
 	dir, env := shellProject(t)
 	_, script, _ := run("completion", "fish")
 	if err := os.WriteFile(filepath.Join(dir, "depwhy.fish"), []byte(script), 0o644); err != nil {
