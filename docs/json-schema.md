@@ -163,7 +163,8 @@ One result per lockfile.
 
 `freed_size_bytes` is what removing that direct dependency would free,
 `freed_count` the number of packages it would remove, and `freed_unmeasured` how many
-of those had no size. Direct dependencies with nothing measured are left out, so
+of those had no size. A direct dependency is left out when none of the packages it
+frees was measured, or when it frees nothing (it is still needed elsewhere), so
 `heaviest` is `[]` for a project that is not installed.
 
 ## Ordering

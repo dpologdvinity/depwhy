@@ -1,13 +1,17 @@
-# depwhy — Specification (v0.1)
+# depwhy — Specification
 
 `depwhy` is a single-binary CLI that explains why a package is in a project's
 dependency tree, what removing a direct dependency would free, and which
 packages are installed at more than one version. It reads lockfiles directly,
 works offline, and uses one interface across ecosystems.
 
-This document is the source of truth for v0.1 behavior. `docs/PLAN.md` says how
-to build it, and `docs/ROADMAP.md` says what comes after. If the plan and the spec
-disagree, the spec wins.
+This document is the source of truth for depwhy's behavior. §1–§11 specify the
+v0.1 core; later sections add each release's features (§12 online lookups, §13
+sizes, §14 more formats, §15 monorepos, §16 shell completion) and override the
+earlier text where they differ. The frozen `--json` contract is
+[json-schema.md](json-schema.md). `docs/PLAN.md` says how the early versions were
+built and `docs/ROADMAP.md` what comes next. If the plan and the spec disagree, the
+spec wins.
 
 ## 1. Goals and non-goals
 
@@ -21,11 +25,11 @@ disagree, the spec wins.
 - Stable `--json` output for scripting.
 
 ### Non-goals (v0.1)
-- No network access of any kind, and no advisory, deprecation, or size lookup (see ROADMAP v0.2/v0.3).
+- No network access of any kind, and no advisory, deprecation, or size lookup (added later as opt-in: `--online` in §12, installed sizes in §13).
 - No modifying lockfiles or manifests. `--remove` is a dry-run analysis only.
 - No resolving dependencies from manifests (`package.json`, `pyproject.toml`). Only lockfiles are read, with one exception: §5.2 reads `package.json` `name` for display labels.
-- No `yarn.lock`, `bun.lock`, `poetry.lock`, `go.sum`, or `requirements.txt` (see ROADMAP).
-- No recursive directory scanning. Only the given directory is checked.
+- No `yarn.lock`, `bun.lock`, `poetry.lock`, `go.sum`, or `requirements.txt` (v0.4 added Yarn, Bun, Poetry and `go.mod`, §14; `go.sum` and `requirements.txt` remain out of scope).
+- No recursive directory scanning. Only the given directory is checked (v0.5 added opt-in `-r`, §15).
 - No config file and no TUI.
 
 ## 2. Tech stack (fixed)
@@ -64,7 +68,7 @@ errors (exit 2).
 | `--dupes` | bool | false | Duplicates mode. |
 | `-C`, `--dir` | string | `.` | Directory to look for lockfiles in. |
 | `-l`, `--lockfile` | string (repeatable) | none | Use these lockfile paths instead of auto-detection. The format comes from the file's base name (§4). |
-| `-e`, `--ecosystem` | string | all | Restrict to `npm`, `python`, or `cargo`. |
+| `-e`, `--ecosystem` | string | all | Restrict to `npm`, `python`, `cargo`, or `go`. |
 | `--prod` | bool | false | Ignore dev edges from roots (and so everything reachable only through them). |
 | `-d`, `--depth` | int | 0 (unlimited) | Max levels printed in the why tree (target = level 0). Why mode only. |
 | `--all` | bool | false | Print all trees and paths without the 10-path cap (§6.1). Why mode only. |
@@ -98,21 +102,26 @@ Errors go to stderr as `depwhy: <message>`. Warnings go to stderr as
 
 ## 4. Lockfile detection
 
-When `--lockfile` is not given, look in `--dir` for these exact file names:
+When `--lockfile` is not given, look in `--dir` for these exact file names, in this
+priority order:
 
 | File | Ecosystem | Format id |
 |---|---|---|
 | `pnpm-lock.yaml` | npm | `pnpm` |
+| `yarn.lock` | npm | `yarn` |
+| `bun.lock` | npm | `bun` |
 | `package-lock.json` | npm | `npm` |
 | `uv.lock` | python | `uv` |
+| `poetry.lock` | python | `poetry` |
 | `Cargo.lock` | cargo | `cargo` |
+| `go.mod` | go | `gomod` |
 
 Rules:
-1. At most one lockfile per ecosystem. If both `pnpm-lock.yaml` and `package-lock.json` exist, use `pnpm-lock.yaml` and warn: `both pnpm-lock.yaml and package-lock.json found; using pnpm-lock.yaml`.
+1. At most one lockfile per ecosystem: the first one in the table wins, with a warning such as `both pnpm-lock.yaml and package-lock.json found; using pnpm-lock.yaml`.
 2. `--ecosystem` filters the detected set.
-3. If no lockfile is found after filtering, exit 2 with: `no supported lockfile in <dir> (looked for pnpm-lock.yaml, package-lock.json, uv.lock, Cargo.lock)`.
-4. With `--lockfile`, the base name must be one of the four names above, or exit 2 with `unrecognized lockfile name: <name>`. Rule 1 does not apply to explicit paths.
-5. Load lockfiles in the table order above. That order is also the output order.
+3. If no lockfile is found after filtering, exit 2 with: `no supported lockfile in <dir> (looked for pnpm-lock.yaml, yarn.lock, bun.lock, package-lock.json, uv.lock, poetry.lock, Cargo.lock, go.mod)` (with `-r`: `no supported lockfile in <dir> or its subdirectories`).
+4. With `--lockfile`, the base name must be one of the names above, or exit 2 with `unrecognized lockfile name: <name>`. Rule 1 does not apply to explicit paths.
+5. Load lockfiles in the table order above. That order is also the output order. (`-r` applies the same rules per directory, §15.1.)
 
 ## 5. Data model
 
@@ -132,7 +141,7 @@ type Node struct {
     ID        string // "<name>@<version>", or "root:<label>" for roots
     Name      string // display name
     Version   string // "" for roots that have none
-    Ecosystem string // "npm" | "python" | "cargo"
+    Ecosystem string // "npm" | "python" | "cargo" | "go"
     Root      bool   // true for the project / workspace members
 }
 
@@ -623,6 +632,9 @@ directories present on disk, behavior is identical to v0.2.
   *unmeasured*: unknown is preferred to wrong. A package installed at several
   paths is measured at one of them.
 - Format sizes in human-readable units: `B`, `KB`, `MB`, `GB` (base 1024).
+- Sizes are apparent file sizes. Package managers that hard-link files from a
+  shared store (pnpm, uv) mean removing a package may reclaim little real disk
+  space; the figures say how much the package occupies, not what `rm` would free.
 - Unmeasured packages produce no error and no size annotation.
 - Freed totals (`--remove`, `--heaviest`) count unmeasured packages as 0 and
   report how many there were, so a platform-specific optional package that is
@@ -638,12 +650,13 @@ directories present on disk, behavior is identical to v0.2.
 - In heaviest mode (`, M not measured` is added inside the parentheses when M > 0):
   ```
   npm · package-lock.json
-  Top 10 heaviest direct dependencies by exclusive size:
+  Top 3 heaviest direct dependencies by exclusive size:
     1. webpack@5.89.0         ~42.1 MB (freed: 18 packages)
     2. typescript@5.3.3       ~31.4 MB (freed: 1 package)
     3. vite@5.0.0             ~12.0 MB (freed: 30 packages, 3 not measured)
   ```
-  With no measurable direct dependency: `no direct dependencies found with size data`.
+  The count in the title is the number of entries shown (at most N). With no
+  measurable direct dependency: `no direct dependencies found with size data`.
 
 ### 13.5 JSON output
 Size keys are **absent** when the value is unmeasured; they are never `null`.

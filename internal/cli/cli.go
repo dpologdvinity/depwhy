@@ -52,9 +52,15 @@ flags:
 // limits of the supported lockfile formats (SPEC §8.4).
 const notes = `
 notes:
-  Cargo.lock records no dev or build edges, so every cargo edge is shown as prod.
-  Cargo path dependencies outside a workspace also lack a source and appear as roots.
+  Cargo.lock records no dev or build edges, so every cargo edge is shown as prod
+  (--cargo-metadata asks cargo for them). Cargo path dependencies outside a
+  workspace also lack a source and appear as roots.
+  go.mod lists the build's requirements; --go-graph adds the edges between them.
+  Yarn and Bun dev dependencies come from package.json next to the lockfile.
   Platform markers are ignored; all edges count.
+  --go-graph and --cargo-metadata run go and cargo offline; use them only on
+  trusted projects. --online is the only flag that uses the network.
+  JSON output: docs/json-schema.md (schema 1).
 `
 
 // options holds the parsed command line. Field names mirror the flags in
