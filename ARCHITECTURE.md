@@ -311,6 +311,15 @@ Across JSON adds a top-level `across: true` and one result per package, with
 per-version source arrays containing relative lockfile paths, roots and direct
 dependency leads. Non-across JSON keeps its existing structure. See SPEC §15.
 
+**Shell completion** (`completion.go`, SPEC §16). `depwhy completion <shell>`
+writes a bash, zsh or fish script whose flag list is generated from the pflag
+`FlagSet`, so it cannot drift from the real flags. For package names the scripts
+call the hidden `--complete-packages` flag with the words typed so far: `Run`
+then skips mode validation, switches off `--online`, `--go-graph` and
+`--cargo-metadata`, loads the selected lockfiles as usual and prints the unique
+non-root names. Names are lockfile data and therefore untrusted; the scripts add
+them as literal completions and never let the shell evaluate them.
+
 The reported version comes from `-ldflags` in release builds, then from the module
 version embedded by `go install pkg@version`, then falls back to `dev`.
 
@@ -322,6 +331,7 @@ version embedded by `go install pkg@version`, then falls back to `dev`.
 | `lockfile` | One test file per format, using the fixtures plus inline data for edge cases. |
 | `render` | Exact expected strings for the text output; decoded structure for JSON. |
 | `health` | Local `httptest` servers standing in for OSV and the registries: batching, caching and TTL, `--refresh`, 404s, timeouts, bad bodies, concurrency limit, warning aggregation. No test uses the internet. |
+| completion | Each script lists the flags; the bash, zsh (syntax only) and fish scripts run in the real shell when it is installed (CI installs all three on Linux; macOS runs bash 3.2), with the test binary standing in for `depwhy` via `TestMain`. A lockfile package named `$(touch PWNED)` must never run. |
 | `cli` | **Golden tests.** `Run` is executed against every fixture project for ten argument lists; stdout, stderr and the exit code are compared with `testdata/golden/*.txt`. |
 | speed | A guard test builds a 3,000-node graph and fails if a query takes 200 ms or more. It is skipped under `-short` and `-race`. |
 

@@ -88,6 +88,11 @@ jobs:
           go-version: ${{ matrix.go == 'stable' && 'stable' || '' }}
           go-version-file: ${{ matrix.go == 'stable' && '' || 'go.mod' }}
           cache: true
+      # zsh and fish let the completion tests run for real instead of skipping.
+      # (macOS already has zsh, and its bash 3.2 checks the bash script's portability.)
+      - name: install shells for the completion tests
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zsh fish
       - name: go test
         shell: bash
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...

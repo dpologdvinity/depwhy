@@ -1,9 +1,10 @@
 // Command depwhy explains why a package is in a project's dependency tree.
 //
-// It reads lockfiles (package-lock.json, pnpm-lock.yaml, uv.lock, Cargo.lock)
-// and answers three questions offline: why is a package installed, what would
-// removing a direct dependency free, and which packages exist at several
-// versions. See the README for usage and ARCHITECTURE.md for the design.
+// It reads lockfiles (npm, pnpm, Yarn, Bun, uv, Poetry, Cargo and Go) and
+// answers, offline: why is a package installed, what would removing a direct
+// dependency free, which packages exist at several versions, and which direct
+// dependencies are heaviest. See the README for usage and ARCHITECTURE.md for
+// the design.
 package main
 
 import (
