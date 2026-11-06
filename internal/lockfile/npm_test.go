@@ -101,6 +101,18 @@ func TestParseNPMMain(t *testing.T) {
 	if len(g.Nodes) != 6 || g.Ecosystem != "npm" || g.Lockfile != "package-lock.json" {
 		t.Fatalf("nodes = %d eco=%s lock=%s", len(g.Nodes), g.Ecosystem, g.Lockfile)
 	}
+	// Each version keeps the packages key it is installed at (used for sizes).
+	paths := map[string]string{}
+	for _, n := range g.Nodes {
+		paths[n.ID] = n.InstallPath
+	}
+	wantPaths := map[string]string{
+		"root:app": "", "a@1.0.0": "node_modules/a", "b@1.0.0": "node_modules/b",
+		"c@1.0.0": "node_modules/c", "c@2.0.0": "node_modules/b/node_modules/c", "d@1.0.0": "node_modules/d",
+	}
+	if !reflect.DeepEqual(paths, wantPaths) {
+		t.Fatalf("install paths = %v", paths)
+	}
 }
 
 // TestParseNPMWorkspace checks that workspace members become roots and a link
@@ -181,6 +193,12 @@ func TestParseNPMAliasedNameAndInvalidJSON(t *testing.T) {
 	}
 	if got := edgeStrings(g); !reflect.DeepEqual(got, []string{"root:p -> real@2.0.0 prod"}) {
 		t.Fatalf("edges = %v", got)
+	}
+	// An alias is installed under its alias key, not under its real name.
+	for _, n := range g.Nodes {
+		if n.ID == "real@2.0.0" && n.InstallPath != "node_modules/alias" {
+			t.Fatalf("alias install path = %q", n.InstallPath)
+		}
 	}
 	if _, _, err := ParseNPM("bad.json", []byte("{")); err == nil || !strings.HasPrefix(err.Error(), "parse bad.json: ") {
 		t.Fatalf("err = %v", err)

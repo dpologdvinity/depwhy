@@ -576,11 +576,19 @@ v0.3 adds on-disk size inspection and removal savings analysis. Without installe
 directories present on disk, behavior is identical to v0.2.
 
 ### 13.1 Goals and non-goals
-- On-disk size of installed packages:
-  - npm: look up installed directory under `node_modules/<path>` from lockfile package key.
-  - Python (uv): inspect virtualenv site-packages (`.venv` in current dir, or `--venv`).
-  - Cargo: skipped (target directory cache does not map cleanly to installed crate disk footprints; report note or omit).
-- `--remove <pkg>` reports total disk space freed: `would free ~X MB (N packages)`.
+- On-disk size of installed packages, measured relative to the lockfile's own
+  directory (also with `-l` and `-r`):
+  - npm (`package-lock.json`): the install directory named by the package's
+    lockfile key (`node_modules/<path>`, e.g. `node_modules/b/node_modules/c`),
+    so every installed version is measured at its own copy.
+  - npm (`pnpm-lock.yaml`, `yarn.lock`, `bun.lock`): pnpm's virtual store
+    `node_modules/.pnpm/<name>@<version>[_<peers>]/node_modules/<name>` (scoped
+    names use `+` for `/`), then `node_modules/<name>`, following its symlink.
+  - Python (uv, poetry): the `*.dist-info` in the virtualenv's site-packages
+    (`.venv` next to the lockfile, or `--venv`), matched by PEP 503 normalized
+    name and version.
+  - Cargo and Go: not measured.
+- `--remove <pkg>` reports total disk space freed: `would remove N packages (freeing ~X MB):`.
 - `depwhy --heaviest [N]`: rank direct dependencies by exclusive transitive size freed.
 - Offline, read-only on disk, non-blocking if installed directories are missing.
 - Non-goals: no downloading archives to compute uncompressed sizes; only locally installed packages are measured.
@@ -589,32 +597,66 @@ directories present on disk, behavior is identical to v0.2.
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
 | `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
-| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` in target directory). |
+| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` next to the lockfile). |
 
 ### 13.3 Measurement rules
-- Size is computed by summing regular file sizes in the package's install directory. Symlinks are not followed outside the package tree.
+- npm: the size is the sum of the regular files in the install directory,
+  excluding its nested `node_modules` (those are other packages, measured on
+  their own). Python: the sum of the regular files listed in the dist-info
+  `RECORD` (read as CSV), checked on disk; entries that resolve outside the
+  virtualenv are not counted, so scripts in its `bin` directory count.
+- Symlinks are never followed while summing, and a symlink is never measured as
+  its own length.
+- Lockfile names and keys are untrusted. A candidate directory is measured only
+  if it stays inside the lockfile's directory after symlinks are resolved and
+  its `package.json` has exactly the node's name and version. Anything else
+  (missing, another version, a stale install, an alias, a path that escapes) is
+  *unmeasured*: unknown is preferred to wrong. A package installed at several
+  paths is measured at one of them.
 - Format sizes in human-readable units: `B`, `KB`, `MB`, `GB` (base 1024).
-- Missing install directories produce no error; sizes appear as unavailable and JSON fields report `null`.
+- Unmeasured packages produce no error and no size annotation.
+- Freed totals (`--remove`, `--heaviest`) count unmeasured packages as 0 and
+  report how many there were, so a platform-specific optional package that is
+  not installed (`fsevents`, `@esbuild/*`) does not hide the total. There is no
+  total only when packages are freed and none was measured; such a direct dependency is
+  left out of `--heaviest`, as is one that frees nothing.
 
 ### 13.4 Text output
-- In why mode: `<name>@<version> (<size>)` when size is known.
-- In remove mode: `would remove N packages (freeing ~X MB):`.
-- In heaviest mode:
+- In why mode: `<name>@<version> (<size>)` on the header and tree lines when the size is known.
+- In remove mode: `would remove N packages (freeing ~X MB):`, or
+  `(freeing ~X MB; M not measured)` when M freed packages were unmeasured; the
+  freed and kept lines carry `(<size>)` when known.
+- In heaviest mode (`, M not measured` is added inside the parentheses when M > 0):
   ```
   npm · package-lock.json
   Top 10 heaviest direct dependencies by exclusive size:
     1. webpack@5.89.0         ~42.1 MB (freed: 18 packages)
     2. typescript@5.3.3       ~31.4 MB (freed: 1 package)
+    3. vite@5.0.0             ~12.0 MB (freed: 30 packages, 3 not measured)
   ```
+  With no measurable direct dependency: `no direct dependencies found with size data`.
 
 ### 13.5 JSON output
-- Package node objects gain `"size_bytes": <int> | null`.
-- Remove result objects gain `"freed_size_bytes": <int> | null`.
-- Heaviest mode outputs `mode: "heaviest"` with ranked direct dependency entries.
+Size keys are **absent** when the value is unmeasured; they are never `null`.
+Sizes depend on what is installed on the machine, so a consumer must treat a
+missing key as "not measured", not as zero.
+- `"size_bytes": <int>` appears on these package objects only: why `package`,
+  remove `package`, `freed[]`, `kept[]` and `kept[].via`. Path steps, `leads`,
+  `required_by`, dupes and `--across` objects never carry sizes.
+- Remove results gain `"freed_size_bytes": <int>` and `"freed_unmeasured": <int>`
+  (the number of freed packages counted as 0). Both are present together on a direct
+  dependency's result when at least one freed package was measured, or when
+  nothing is freed (a known 0).
+- Heaviest mode outputs `mode: "heaviest"`; each result has `heaviest`, an array
+  of `{ "name", "version", "freed_size_bytes", "freed_count", "freed_unmeasured" }`,
+  all always present, sorted by `freed_size_bytes` descending, then name and version.
 
 ### 13.6 Package layout
-- New package `internal/size` provides directory measurement and caching.
-- `internal/cli` detects installed package directories and passes size providers to render/graph.
+- New package `internal/size` provides directory measurement and caching, and
+  owns the containment and identity checks above.
+- `internal/cli` makes one size provider per graph (memoized, sharing one
+  scanner per run) and passes it to graph (freed totals) and render (annotations).
+- `graph.Node.InstallPath` carries the `package-lock.json` key; other parsers leave it empty.
 
 ### 13.7 Definition of done (v0.3)
 - `internal/size` tests cover symlinks, missing directories, npm nested paths, and python site-packages.

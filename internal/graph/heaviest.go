@@ -4,9 +4,10 @@ import "sort"
 
 // HeaviestItem is a direct dependency ranked by the disk size freed if removed.
 type HeaviestItem struct {
-	Target     int   // direct dependency node index
-	FreedSize  int64 // total bytes freed
-	FreedCount int   // count of freed packages
+	Target          int   // direct dependency node index
+	FreedSize       int64 // bytes freed by the measured packages
+	FreedCount      int   // count of freed packages
+	FreedUnmeasured int   // freed packages without a size, counted as 0
 }
 
 // HeaviestOpts controls Heaviest ranking.
@@ -17,6 +18,8 @@ type HeaviestOpts struct {
 }
 
 // Heaviest ranks direct dependencies by exclusive transitive freed size.
+// Unmeasured packages count as 0 (see ComputeFreedSize); a direct dependency
+// is left out only when none of the packages it frees could be measured.
 func (g *Graph) Heaviest(opts HeaviestOpts) []HeaviestItem {
 	if opts.Size == nil {
 		return nil
@@ -40,13 +43,15 @@ func (g *Graph) Heaviest(opts HeaviestOpts) []HeaviestItem {
 	var items []HeaviestItem
 	for d := range directSet {
 		rem := g.Remove(d, opts.Prod)
-		if !rem.ComputeFreedSize(opts.Size) {
+		// Nothing freed (still required elsewhere) frees no space: not ranked.
+		if len(rem.Freed) == 0 || !rem.ComputeFreedSize(opts.Size) {
 			continue
 		}
 		items = append(items, HeaviestItem{
-			Target:     d,
-			FreedSize:  *rem.FreedSize,
-			FreedCount: len(rem.Freed),
+			Target:          d,
+			FreedSize:       *rem.FreedSize,
+			FreedCount:      len(rem.Freed),
+			FreedUnmeasured: rem.FreedUnmeasured,
 		})
 	}
 

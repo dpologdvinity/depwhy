@@ -95,7 +95,7 @@ func newFlagSet(o *options, version, help *bool) *pflag.FlagSet {
 	fs.BoolVar(&o.refresh, "refresh", false, "with --online, ignore cached answers")
 	fs.IntVar(&o.heaviest, "heaviest", 0, "rank the N (default 10) direct dependencies freeing the most disk space")
 	fs.Lookup("heaviest").NoOptDefVal = "10"
-	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv in target directory)")
+	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv next to the lockfile)")
 	fs.BoolVar(&o.goGraph, "go-graph", false, "refine Go module transitive dependencies using go mod graph")
 	fs.BoolVar(&o.cargoMetadata, "cargo-metadata", false, "use cargo metadata for precise Cargo dependency discrimination")
 	fs.BoolVarP(version, "version", "V", false, "print version and exit")
@@ -227,6 +227,9 @@ type session struct {
 	stdout   io.Writer
 	stderr   io.Writer
 	warnings []string
+
+	scanner *size.Scanner                            // shared by every size provider
+	sizers  map[*graph.Graph]func(int) (int64, bool) // size provider per graph, see sizeOf
 }
 
 // warn prints a warning to stderr and keeps it for the JSON document. Warnings
@@ -374,44 +377,52 @@ func (s *session) dupes() int {
 	return s.finishJSON(doc)
 }
 
-// sizeOf returns a function measuring on-disk size for a node in g.
+// sizeOf returns the size provider for g: the on-disk size of a node, and
+// false when it is a root or not measurable (SPEC §13.3). Sizes are measured
+// in the lockfile's own directory (or --venv for Python). A provider is made
+// once per graph and remembers every answer, and all providers share one
+// scanner, so nothing is measured twice in a run.
 func (s *session) sizeOf(g *graph.Graph) func(int) (int64, bool) {
-	scanner := size.NewScanner()
-	projectDir := s.o.dir
-	if s.o.recursive {
-		projectDir = filepath.Dir(g.Lockfile)
+	if f, ok := s.sizers[g]; ok {
+		return f
 	}
-
+	if s.sizers == nil {
+		s.sizers = map[*graph.Graph]func(int) (int64, bool){}
+		s.scanner = size.NewScanner()
+	}
+	dir := filepath.Dir(g.Lockfile)
+	var measure func(graph.Node) (int64, error)
 	switch g.Ecosystem {
 	case "npm":
-		return func(n int) (int64, bool) {
-			if g.Nodes[n].Root {
-				return 0, false
-			}
-			sz, err := scanner.NPMSize(projectDir, filepath.Join("node_modules", filepath.FromSlash(g.Nodes[n].Name)))
-			if err != nil {
-				return 0, false
-			}
-			return sz, true
+		measure = func(n graph.Node) (int64, error) {
+			return s.scanner.NPMSize(dir, n.InstallPath, n.Name, n.Version)
 		}
 	case "python":
-		sitePackages, err := size.FindPythonSitePackages(projectDir, s.o.venv)
-		if err != nil {
-			return func(int) (int64, bool) { return 0, false }
-		}
-		return func(n int) (int64, bool) {
-			if g.Nodes[n].Root {
-				return 0, false
+		if site, venv, err := size.FindPythonSitePackages(dir, s.o.venv); err == nil {
+			measure = func(n graph.Node) (int64, error) {
+				return s.scanner.PythonSize(site, venv, n.Name, n.Version)
 			}
-			sz, err := scanner.PythonSize(sitePackages, g.Nodes[n].Name, g.Nodes[n].Version)
-			if err != nil {
-				return 0, false
-			}
-			return sz, true
 		}
-	default:
-		return func(int) (int64, bool) { return 0, false }
 	}
+	type answer struct {
+		size int64
+		ok   bool
+	}
+	memo := map[int]answer{}
+	f := func(n int) (int64, bool) {
+		if measure == nil || g.Nodes[n].Root {
+			return 0, false
+		}
+		a, done := memo[n]
+		if !done {
+			sz, err := measure(g.Nodes[n])
+			a = answer{sz, err == nil}
+			memo[n] = a
+		}
+		return a.size, a.ok
+	}
+	s.sizers[g] = f
+	return f
 }
 
 // heaviest runs --heaviest mode: ranks direct dependencies by exclusive transitive freed size.
@@ -470,10 +481,11 @@ func (s *session) query() int {
 	removes := make([]graph.RemoveResult, len(matches))
 	for i, m := range matches {
 		shown[m.g] = append(shown[m.g], m.n)
-		sizeOf := s.sizeOf(m.g)
 		if o.remove {
 			rem := m.g.Remove(m.n, o.prod)
-			rem.ComputeFreedSize(sizeOf)
+			if !rem.NotDirect { // nothing is analyzed for a non-direct target
+				rem.ComputeFreedSize(s.sizeOf(m.g))
+			}
 			removes[i] = rem
 			shown[m.g] = append(shown[m.g], removes[i].Freed...)
 			for _, k := range removes[i].Kept {
@@ -491,7 +503,11 @@ func (s *session) query() int {
 		st.Notes = notes[m.g]
 		sizeOf := s.sizeOf(m.g)
 		sizes := map[int]int64{}
-		for _, n := range shown[m.g] {
+		measured := shown[m.g]
+		for _, k := range removes[i].Kept {
+			measured = append(measured, k.Via) // JSON kept[].via carries a size too
+		}
+		for _, n := range measured {
 			if sz, ok := sizeOf(n); ok {
 				sizes[n] = sz
 			}

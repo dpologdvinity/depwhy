@@ -1,0 +1,11 @@
+c@1.0.0 (2.0 KB)  npm · package-lock.json
+└── a@1.0.0 (1.0 KB)
+    └── app (root, prod)
+
+c@2.0.0 (300 B)  npm · package-lock.json
+└── b@1.0.0 (512 B)
+    └── app (root, dev)
+
+--- stderr
+
+--- exit=0

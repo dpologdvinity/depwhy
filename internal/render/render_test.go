@@ -446,3 +446,66 @@ func TestRenderSizesJSON(t *testing.T) {
 		t.Fatalf("HeaviestJSON missing fields: %s", string(data))
 	}
 }
+
+// TestRenderUnmeasuredSizes checks that freed packages without a size are
+// counted in text ("N not measured") and JSON ("freed_unmeasured"), and that
+// the JSON keys are absent when nothing was measured.
+func TestRenderUnmeasuredSizes(t *testing.T) {
+	g := npmGraph(t)
+	rem := g.Remove(find(t, g, "a@1.0.0"), false)
+	sz := int64(2048)
+	rem.FreedSize, rem.FreedUnmeasured = &sz, 1
+
+	var buf bytes.Buffer
+	RemoveText(&buf, g, rem, Style{})
+	if !strings.Contains(buf.String(), "would remove 2 packages (freeing ~2.0 KB; 1 not measured):") {
+		t.Fatalf("remove text:\n%s", buf.String())
+	}
+	data, _ := json.Marshal(RemoveJSON(g, rem, nil))
+	if !strings.Contains(string(data), `"freed_size_bytes":2048,"freed_unmeasured":1`) {
+		t.Fatalf("remove json: %s", data)
+	}
+
+	none := g.Remove(find(t, g, "a@1.0.0"), false)
+	none.FreedUnmeasured = 2
+	data, _ = json.Marshal(RemoveJSON(g, none, nil))
+	if strings.Contains(string(data), "freed_size_bytes") || strings.Contains(string(data), "freed_unmeasured") {
+		t.Fatalf("unmeasured remove json must omit size keys: %s", data)
+	}
+
+	measured := g.Remove(find(t, g, "a@1.0.0"), false)
+	measured.FreedSize = &sz
+	data, _ = json.Marshal(RemoveJSON(g, measured, nil))
+	if !strings.Contains(string(data), `"freed_unmeasured":0`) {
+		t.Fatalf("measured remove json must carry freed_unmeasured 0: %s", data)
+	}
+
+	items := []graph.HeaviestItem{
+		{Target: 0, FreedSize: 5000, FreedCount: 3, FreedUnmeasured: 2},
+		{Target: 1, FreedSize: 10, FreedCount: 1},
+	}
+	buf.Reset()
+	HeaviestText(&buf, g, items, Style{})
+	if !strings.Contains(buf.String(), "(freed: 3 packages, 2 not measured)") || !strings.Contains(buf.String(), "(freed: 1 package)\n") {
+		t.Fatalf("heaviest text:\n%s", buf.String())
+	}
+	data, _ = json.Marshal(HeaviestJSON(g, items))
+	if !strings.Contains(string(data), `"freed_unmeasured":2`) || !strings.Contains(string(data), `"freed_unmeasured":0`) {
+		t.Fatalf("heaviest json: %s", data)
+	}
+}
+
+// TestRenderKeptViaSize checks that a kept package's via object carries its
+// size in JSON, like every other package object of a remove result.
+func TestRenderKeptViaSize(t *testing.T) {
+	g := npmGraph(t)
+	rem := g.Remove(find(t, g, "a@1.0.0"), false)
+	if len(rem.Kept) == 0 {
+		t.Fatal("fixture has no kept package")
+	}
+	sizes := map[int]int64{rem.Kept[0].Node: 1, rem.Kept[0].Via: 2}
+	data, _ := json.Marshal(RemoveJSONWithSizes(g, rem, nil, sizes))
+	if !strings.Contains(string(data), `"size_bytes":2`) {
+		t.Fatalf("kept via size missing: %s", data)
+	}
+}

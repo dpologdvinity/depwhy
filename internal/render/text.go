@@ -143,7 +143,7 @@ func RemoveText(w io.Writer, g *graph.Graph, r graph.RemoveResult, s Style) {
 	if len(r.Freed) == 0 {
 		fmt.Fprintln(w, "would remove 0 packages")
 	} else if r.FreedSize != nil {
-		fmt.Fprintf(w, "would remove %s (freeing ~%s):\n", plural(len(r.Freed), "package"), FormatSize(*r.FreedSize))
+		fmt.Fprintf(w, "would remove %s (freeing ~%s%s):\n", plural(len(r.Freed), "package"), FormatSize(*r.FreedSize), unmeasured("; ", r.FreedUnmeasured))
 		for _, n := range r.Freed {
 			fmt.Fprintf(w, "  %s%s\n", pkgID(g, n), s.suffix(n))
 		}
@@ -192,6 +192,15 @@ func HeaviestText(w io.Writer, g *graph.Graph, items []graph.HeaviestItem, s Sty
 	}
 	fmt.Fprintf(w, "Top %d heaviest direct dependencies by exclusive size:\n", len(items))
 	for i, it := range items {
-		fmt.Fprintf(w, "  %2d. %-24s ~%-8s (freed: %s)\n", i+1, pkgID(g, it.Target), FormatSize(it.FreedSize), plural(it.FreedCount, "package"))
+		fmt.Fprintf(w, "  %2d. %-24s ~%-8s (freed: %s%s)\n", i+1, pkgID(g, it.Target), FormatSize(it.FreedSize), plural(it.FreedCount, "package"), unmeasured(", ", it.FreedUnmeasured))
 	}
+}
+
+// unmeasured returns sep + "N not measured" for freed packages that had no
+// size and therefore count as 0 in the total, or "" when every one was measured.
+func unmeasured(sep string, n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s%d not measured", sep, n)
 }

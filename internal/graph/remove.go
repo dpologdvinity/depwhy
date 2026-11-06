@@ -18,7 +18,12 @@ type RemoveResult struct {
 	StillVia    int    // when StillNeeded: the package that keeps it
 	Kind        Kind   // kind of the root→target edge
 	Root        int    // the root that requires Target
-	FreedSize   *int64 // total bytes freed if size provider is available
+	// FreedSize is the bytes freed by the measured packages in Freed, or nil
+	// when none could be measured. FreedUnmeasured counts the freed packages
+	// that had no size (not installed, e.g. another platform's optional
+	// package); they add 0 to FreedSize. Both are set by ComputeFreedSize.
+	FreedSize       *int64
+	FreedUnmeasured int
 }
 
 // Remove analyzes dropping the root→t edges (SPEC §6.2). With prod, root Dev
@@ -82,18 +87,26 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 	return res
 }
 
-// ComputeFreedSize calculates total freed size if sizeOf provides sizes for all freed nodes.
+// ComputeFreedSize sums the sizes of the freed packages. A package sizeOf
+// cannot measure counts as 0 and increments FreedUnmeasured, so one missing
+// platform-specific package does not hide the total. FreedSize stays nil, and
+// the result is false, only when there were freed packages and none could be
+// measured; an empty freed set is a known 0.
 func (r *RemoveResult) ComputeFreedSize(sizeOf func(int) (int64, bool)) bool {
 	if sizeOf == nil {
 		return false
 	}
 	var total int64
+	measured := 0
 	for _, n := range r.Freed {
-		sz, ok := sizeOf(n)
-		if !ok {
-			return false
+		if sz, ok := sizeOf(n); ok {
+			total += sz
+			measured++
 		}
-		total += sz
+	}
+	r.FreedUnmeasured = len(r.Freed) - measured
+	if measured == 0 && len(r.Freed) > 0 {
+		return false
 	}
 	r.FreedSize = &total
 	return true

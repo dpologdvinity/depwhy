@@ -246,6 +246,31 @@ result.
   the wire format. Arrays are always built non-nil so they encode as `[]`, never
   `null`. The schema is versioned because it becomes a stability promise at 1.0.
 
+## Installed sizes (`internal/size`)
+
+Sizes are optional data about the machine, not the lockfile (SPEC §13). The CLI
+builds one size provider per graph, `func(node) (bytes, ok)`, memoized and
+sharing one `size.Scanner` (which caches directory sizes, listings and the
+site-packages index) for the whole run. Everything is measured relative to the
+lockfile's directory.
+
+- **npm**: `package-lock.json` records each package's install path, kept in
+  `graph.Node.InstallPath`; pnpm, yarn and bun have none, so the scanner tries
+  pnpm's virtual store and then `node_modules/<name>`. A directory is measured
+  without its nested `node_modules` (other packages), so freed totals never
+  count a package twice.
+- **Python**: `*.dist-info` directories are indexed once by PEP 503 normalized
+  name and version, and a package's size is the files its `RECORD` lists.
+- **Trust**: lockfile names and keys, and `RECORD` entries, are untrusted input.
+  A path is measured only if it is local, still inside the project after
+  symlinks are resolved, and (npm) its `package.json` is exactly the node's
+  name@version. Walks never follow symlinks. Failing any check means
+  "unmeasured", never an error.
+- **Partial totals**: `RemoveResult.ComputeFreedSize` and `Heaviest` count
+  unmeasured packages as 0 and report the count (`FreedUnmeasured`), because
+  platform-specific optional packages are routinely absent. Only a freed set
+  with nothing measured has no total. JSON omits size keys that are unmeasured.
+
 ## Online lookups (`internal/health`)
 
 Only used with `--online` (SPEC §12). Everything else in depwhy is offline and
