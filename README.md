@@ -233,7 +233,7 @@ output, so avoid `--online` on projects whose package names are confidential.
 |---|---|---|
 | `pnpm-lock.yaml` | lockfileVersion 9.x | npm |
 | `yarn.lock` | Berry (v2+) and Classic (v1) | npm |
-| `bun.lock` | Bun 1.2+ JSONC | npm |
+| `bun.lock` | Bun 1.2+ text lockfile (JSONC) | npm |
 | `package-lock.json` | lockfileVersion 1, 2, and 3 | npm |
 | `uv.lock` | version 1 | python |
 | `poetry.lock` | all versions | python |

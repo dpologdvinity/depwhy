@@ -629,10 +629,12 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
   - Root: synthetic root created from project manifest or direct entries.
 
 #### 14.2.2 Bun `bun.lock`
-- Bun 1.2+ JSONC lockfile format.
-- Top-level `lockfileVersion`, `packages` dictionary, and `workspaces`.
-- Root: `""` or workspace member directories.
-- Package entries declare name, version, and dependency edges.
+- Bun 1.2+ text lockfile: JSONC, so `//` and `/* */` comments and trailing commas are removed (outside strings) before decoding.
+- Top-level `workspaces` map and `packages` dictionary.
+- Root: `""` (the project) and each workspace member directory. A member's own `packages` entry is `["name@workspace:<dir>"]` and maps to its root.
+- Each `packages` value is an array. Element 0 is `name@version`, split at the first `@` after index 0 (scoped names, npm aliases give the real name). The first object after it holds `dependencies`, `optionalDependencies` and `peerDependencies` (index 2 for registry packages, 1 for tarball, `file:` and git ones).
+- `packages` keys are install paths (`parent/child` for a nested copy). A dependency resolves to the nearest key: `from/name`, then dropping one package from the path at a time, then the top-level `name`.
+- Edge kinds follow `package-lock.json`: only roots have Dev edges; unresolvable Prod/Dev dependencies warn, Optional/Peer ones are skipped.
 
 #### 14.2.3 Poetry `poetry.lock`
 - TOML format with `[[package]]` tables.
