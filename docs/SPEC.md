@@ -715,8 +715,12 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
 - Fields: `name`, `version`, `optional`, `groups` (Poetry >= 2.0), `category` (Poetry < 1.5), and `dependencies` table (a dependency table with `optional = true` is an Optional edge).
 - Direct dependencies come from `pyproject.toml`. Only the `main` group is production:
   `[tool.poetry.dependencies]`, `[tool.poetry.group.main.dependencies]` and `[project].dependencies` -> Prod;
-  `[tool.poetry.group.<name>.dependencies]` for any other group and legacy `[tool.poetry.dev-dependencies]` -> Dev;
+  `[tool.poetry.group.<name>.dependencies]` for any other group, every PEP 735 `[dependency-groups]` group
+  (Poetry 2.2+; requirement strings, with `{include-group = "..."}` adding nothing new since all groups are Dev)
+  and legacy `[tool.poetry.dev-dependencies]` -> Dev;
   `[project.optional-dependencies]` and Poetry dependencies with `optional = true` (extras) -> Optional.
+  A requirement naming the project itself (a self-referencing extra such as `all = ["proj[x]"]`) is skipped.
+- Locked packages that no root reaches are reported with a warning, as for the other formats.
 - Without `pyproject.toml` (or with no declared dependencies), packages that nothing depends on become direct.
   Their kind comes from `groups` (contains `main` -> Prod, else Dev), else `category` (`dev` -> Dev, else Prod);
   a production package with `optional = true` is Optional. Poetry 1.5-1.8 lockfiles record neither field, so all are Prod.
