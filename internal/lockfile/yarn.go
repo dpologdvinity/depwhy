@@ -464,17 +464,3 @@ func parseYarnClassic(path string, data []byte) (*graph.Graph, []string, error) 
 	}
 	return finish(b, warns)
 }
-
-// parseDescriptor extracts package name and version specifier from a descriptor
-// at its last "@". It suits single descriptors without "@" in the range; the
-// yarn parsers use yarnSplit instead.
-func parseDescriptor(desc string) (name, versionRange string) {
-	desc = strings.Trim(desc, `"' `)
-	lastAt := strings.LastIndex(desc, "@")
-	if lastAt <= 0 {
-		return desc, ""
-	}
-	name = desc[:lastAt]
-	versionRange = desc[lastAt+1:]
-	return name, versionRange
-}
