@@ -44,16 +44,16 @@ Spec: `docs/SPEC.md` §15. Plan: `docs/PLAN.md` (Tasks 34–37).
 - Group output by lockfile path.
 - `depwhy --dupes --across`: the same package at different versions across lockfiles in one repo.
 
-## v1.0 — Stability
+## v1.0 — Stability — done
 - Freeze the JSON `schema: 1` and document it in `docs/json-schema.md`. Any break bumps `schema`. Done; a test pins the key set.
 - Distribution: a Scoop bucket (`dpologdvinity/scoop-bucket`, which pulls each release). Done early, in v0.2.x: the Homebrew cask in `dpologdvinity/homebrew-tap`, `.deb`/`.rpm`/`.apk` packages with a signed apt repository, and the npm package `@kaitlynbassford/depwhy` (`npm/`, a launcher that downloads the right binary).
 - Shell completions (`depwhy completion bash|zsh|fish`), with package-name completion from the lockfile. Done.
 
 ## Launch checklist (alongside v0.1–v0.2)
-- Demo GIF recorded with `vhs` (charmbracelet/vhs) from a committed `demo.tape`, shown at the top of the README.
-- Comparison table in the README: `npm ls`, `pnpm why`, `uv tree --invert`, and `cargo tree -i` against depwhy (cross-ecosystem, removal impact, JSON).
-- Post to Show HN, r/golang, r/node, r/Python, and r/rust after v0.2, since advisories make the demo stronger.
-- Issue templates: bug (with lockfile snippet) and new format request.
+- Demo GIF recorded with `vhs` (charmbracelet/vhs) from a committed `demo.tape`, shown at the top of the README. Done.
+- Comparison table in the README: `npm ls`, `pnpm why`, `uv tree --invert`, and `cargo tree -i` against depwhy (cross-ecosystem, removal impact, JSON). Done.
+- Post to Show HN, r/golang, r/node, r/Python, and r/rust after v0.2, since advisories make the demo stronger. (The owner posts these.)
+- Issue templates: bug (with lockfile snippet) and new format request. Done.
 
 ## Ideas parked (not scheduled)
 - `--graph dot|mermaid` export.
