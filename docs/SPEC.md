@@ -669,8 +669,21 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
   warns and uses the go.mod-only graph.
 
 #### 14.2.5 Cargo Precision
-- When `--cargo-metadata` is set and `cargo` is found on PATH, `cargo metadata --format-version 1` is executed.
+- When `--cargo-metadata` is set, depwhy runs
+  `cargo metadata --locked --offline --format-version 1 --manifest-path <dir>/Cargo.toml`
+  in the lockfile's directory `<dir>`, with a 60-second timeout. `--locked`
+  makes cargo fail rather than rewrite an out-of-date Cargo.lock, and
+  `--offline` keeps it off the network.
+- The environment sets `RUSTUP_TOOLCHAIN` to the user's `rustup default`
+  toolchain, `RUSTC=rustc`, and empty `RUSTC_WRAPPER` and
+  `RUSTC_WORKSPACE_WRAPPER` (each unless the user already set it), so a
+  project's `rust-toolchain.toml` or `.cargo/config.toml` cannot pick the
+  binaries cargo runs. cargo still reads the rest of the project's
+  configuration, so the flag is for trusted projects only.
 - Accurately discriminates Dev, Build, and Prod dependencies and discovers precise workspace members.
+- If `cargo` is missing, fails (for example Cargo.lock is out of date with
+  Cargo.toml, or a registry dependency is not in the local cache) or times
+  out, depwhy warns and parses Cargo.lock as without the flag.
 
 ### 14.3 Ecosystem detection order
 Updated lockfile detection priority per directory:
