@@ -643,7 +643,30 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
 - Parses `module <path>`, `require (...)`, and `replace (...)`.
 - Requirements lacking `// indirect` comment are marked Prod edges from the root module.
 - Requirements with `// indirect` are marked indirect edges.
-- When `go` binary is available on PATH and `--go-graph` is passed, `go mod graph` output refines transitive edges.
+- `replace` never renames a dependency: the node keeps the required module path,
+  because the replacement only says where the code comes from. A
+  version-specific replace (`old v1.0.0 => ...`) applies to that version only
+  and wins over a path-wide one (`old => ...`). A replacement by the same module
+  path at another version (a version pin, `x v1.0.0 => x v1.0.1`) shows the
+  replacement version, since that is the code that is built. Forks
+  (`old => other v1.2.3`) and local directories (`old => ./dir`) keep the
+  required version, so `--online` never looks up a version of the wrong module.
+- When `--go-graph` is passed, `go mod graph` runs in the go.mod's directory to
+  add transitive edges, with a 60-second timeout and the environment
+  `GOTOOLCHAIN=local GOPROXY=off GOFLAGS=-mod=readonly GOWORK=off`: no toolchain
+  or module is downloaded, go.mod and go.sum are never rewritten, and a parent
+  `go.work` is ignored. Its output is the whole requirement graph, so depwhy
+  keeps only the build list that minimal version selection picks:
+  - `go@…` and `toolchain@…` entries are not modules and are dropped.
+  - For each module path only the highest version (by semver) is kept. Edges
+    from other versions are dropped, and edges to them point at the selected
+    version, so `--dupes` never reports two versions of one Go module.
+  - Only modules reachable from the main module through kept edges become
+    nodes. With module graph pruning (go 1.17+) every module that provides a
+    package is a requirement of the main module, so nothing built is lost.
+- If `go` is missing, fails (for example a module not in the local module
+  cache, or a `go` line newer than the local toolchain) or times out, depwhy
+  warns and uses the go.mod-only graph.
 
 #### 14.2.5 Cargo Precision
 - When `--cargo-metadata` is set and `cargo` is found on PATH, `cargo metadata --format-version 1` is executed.
