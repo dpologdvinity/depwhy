@@ -90,6 +90,15 @@ func TestSizeUninstalledOptional(t *testing.T) {
 	}
 }
 
+// TestSizeNotDirect checks that a --remove of a package that is not a direct
+// dependency carries no freed size: nothing was analyzed, so 0 would be wrong.
+func TestSizeNotDirect(t *testing.T) {
+	_, out, _ := run("-C", installedNPM(t), "--json", "--remove", "c")
+	if strings.Contains(out, "freed_size_bytes") || strings.Contains(out, "freed_unmeasured") {
+		t.Fatalf("not-direct remove has a freed size:\n%s", out)
+	}
+}
+
 // TestSizeLockfileDir checks that with -l the sizes come from the lockfile's
 // directory, not from --dir.
 func TestSizeLockfileDir(t *testing.T) {

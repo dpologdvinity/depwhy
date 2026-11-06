@@ -43,7 +43,8 @@ func (g *Graph) Heaviest(opts HeaviestOpts) []HeaviestItem {
 	var items []HeaviestItem
 	for d := range directSet {
 		rem := g.Remove(d, opts.Prod)
-		if !rem.ComputeFreedSize(opts.Size) {
+		// Nothing freed (still required elsewhere) frees no space: not ranked.
+		if len(rem.Freed) == 0 || !rem.ComputeFreedSize(opts.Size) {
 			continue
 		}
 		items = append(items, HeaviestItem{

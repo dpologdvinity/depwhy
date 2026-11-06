@@ -95,7 +95,7 @@ func newFlagSet(o *options, version, help *bool) *pflag.FlagSet {
 	fs.BoolVar(&o.refresh, "refresh", false, "with --online, ignore cached answers")
 	fs.IntVar(&o.heaviest, "heaviest", 0, "rank the N (default 10) direct dependencies freeing the most disk space")
 	fs.Lookup("heaviest").NoOptDefVal = "10"
-	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv in target directory)")
+	fs.StringVar(&o.venv, "venv", "", "path to Python virtualenv (default .venv next to the lockfile)")
 	fs.BoolVar(&o.goGraph, "go-graph", false, "refine Go module transitive dependencies using go mod graph")
 	fs.BoolVar(&o.cargoMetadata, "cargo-metadata", false, "use cargo metadata for precise Cargo dependency discrimination")
 	fs.BoolVarP(version, "version", "V", false, "print version and exit")
@@ -483,7 +483,9 @@ func (s *session) query() int {
 		shown[m.g] = append(shown[m.g], m.n)
 		if o.remove {
 			rem := m.g.Remove(m.n, o.prod)
-			rem.ComputeFreedSize(s.sizeOf(m.g))
+			if !rem.NotDirect { // nothing is analyzed for a non-direct target
+				rem.ComputeFreedSize(s.sizeOf(m.g))
+			}
 			removes[i] = rem
 			shown[m.g] = append(shown[m.g], removes[i].Freed...)
 			for _, k := range removes[i].Kept {

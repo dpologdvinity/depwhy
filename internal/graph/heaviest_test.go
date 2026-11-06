@@ -84,6 +84,11 @@ func TestComputeFreedSize(t *testing.T) {
 	if ok || none.FreedSize != nil || none.FreedUnmeasured != 2 {
 		t.Errorf("none = %v, %v, %d; want no size, 2 unmeasured", ok, none.FreedSize, none.FreedUnmeasured)
 	}
+	// Nothing freed: the total is a known 0, not unknown.
+	empty := RemoveResult{}
+	if !empty.ComputeFreedSize(func(int) (int64, bool) { return 0, false }) || empty.FreedSize == nil || *empty.FreedSize != 0 {
+		t.Errorf("empty freed set = %v, want known 0", empty.FreedSize)
+	}
 	if nilSize := g.Remove(g.byID("a@1.0.0"), false); nilSize.ComputeFreedSize(nil) {
 		t.Error("nil sizeOf must report no size")
 	}

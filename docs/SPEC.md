@@ -597,7 +597,7 @@ directories present on disk, behavior is identical to v0.2.
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
 | `--heaviest` | int (optional, default 10) | 0 | Rank direct dependencies by exclusive transitive size freed. The count may be written `--heaviest=N` or `--heaviest N`; it must be positive. `--online` is a usage error with `--heaviest`. |
-| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` in target directory). |
+| `--venv` | string | `""` | Path to Python virtualenv (default `.venv` next to the lockfile). |
 
 ### 13.3 Measurement rules
 - npm: the size is the sum of the regular files in the install directory,
@@ -618,8 +618,8 @@ directories present on disk, behavior is identical to v0.2.
 - Freed totals (`--remove`, `--heaviest`) count unmeasured packages as 0 and
   report how many there were, so a platform-specific optional package that is
   not installed (`fsevents`, `@esbuild/*`) does not hide the total. There is no
-  total only when no freed package was measured; such a direct dependency is
-  left out of `--heaviest`.
+  total only when packages are freed and none was measured; such a direct dependency is
+  left out of `--heaviest`, as is one that frees nothing.
 
 ### 13.4 Text output
 - In why mode: `<name>@<version> (<size>)` on the header and tree lines when the size is known.
@@ -644,8 +644,9 @@ missing key as "not measured", not as zero.
   remove `package`, `freed[]`, `kept[]` and `kept[].via`. Path steps, `leads`,
   `required_by`, dupes and `--across` objects never carry sizes.
 - Remove results gain `"freed_size_bytes": <int>` and `"freed_unmeasured": <int>`
-  (the number of freed packages counted as 0). Both are present together, only
-  when at least one freed package was measured.
+  (the number of freed packages counted as 0). Both are present together on a direct
+  dependency's result when at least one freed package was measured, or when
+  nothing is freed (a known 0).
 - Heaviest mode outputs `mode: "heaviest"`; each result has `heaviest`, an array
   of `{ "name", "version", "freed_size_bytes", "freed_count", "freed_unmeasured" }`,
   all always present, sorted by `freed_size_bytes` descending, then name and version.

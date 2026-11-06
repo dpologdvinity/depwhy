@@ -90,7 +90,8 @@ func (g *Graph) Remove(t int, prod bool) RemoveResult {
 // ComputeFreedSize sums the sizes of the freed packages. A package sizeOf
 // cannot measure counts as 0 and increments FreedUnmeasured, so one missing
 // platform-specific package does not hide the total. FreedSize stays nil, and
-// the result is false, only when no freed package could be measured.
+// the result is false, only when there were freed packages and none could be
+// measured; an empty freed set is a known 0.
 func (r *RemoveResult) ComputeFreedSize(sizeOf func(int) (int64, bool)) bool {
 	if sizeOf == nil {
 		return false
@@ -104,7 +105,7 @@ func (r *RemoveResult) ComputeFreedSize(sizeOf func(int) (int64, bool)) bool {
 		}
 	}
 	r.FreedUnmeasured = len(r.Freed) - measured
-	if measured == 0 {
+	if measured == 0 && len(r.Freed) > 0 {
 		return false
 	}
 	r.FreedSize = &total
