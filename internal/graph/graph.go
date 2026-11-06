@@ -40,6 +40,12 @@ type Node struct {
 	Version   string // "" for roots that have none
 	Ecosystem string // "npm" | "python" | "cargo"
 	Root      bool   // true for the project and workspace members
+	// InstallPath is where the package is installed, relative to the
+	// lockfile's directory and slash-separated: the package-lock.json
+	// "packages" key, e.g. "node_modules/a/node_modules/c". Only parsers that
+	// know it set it; "" means unknown. It is untrusted lockfile data, used
+	// only by the size scanner, which confines it to the project.
+	InstallPath string
 }
 
 // Edge is a dependency: node From requires node To. Both are indexes into
@@ -112,6 +118,14 @@ func (b *Builder) Node(name, version string) int {
 // Root gets or creates a project/workspace-member node.
 func (b *Builder) Root(label, version string) int {
 	return b.add("root:"+label, label, version, true)
+}
+
+// SetInstallPath records where node n is installed (see Node.InstallPath).
+// The first path recorded for a node wins.
+func (b *Builder) SetInstallPath(n int, path string) {
+	if b.g.Nodes[n].InstallPath == "" {
+		b.g.Nodes[n].InstallPath = path
+	}
 }
 
 // Edge adds from→to, ignoring exact duplicates.

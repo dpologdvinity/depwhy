@@ -116,6 +116,7 @@ func ParseNPM(path string, data []byte) (*graph.Graph, []string, error) {
 			idx[k] = b.Root(label(k, e), e.Version)
 		default:
 			idx[k] = b.Node(npmName(k, e), e.Version)
+			b.SetInstallPath(idx[k], k) // keys are sorted, so the first copy wins
 		}
 	}
 

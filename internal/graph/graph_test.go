@@ -20,6 +20,13 @@ func TestBuilderDedupesNodes(t *testing.T) {
 	if again := b.Root("app", "1"); again != root {
 		t.Fatal("root must dedupe")
 	}
+	// The first install path recorded for a node wins.
+	b.SetInstallPath(first, "node_modules/a")
+	b.SetInstallPath(first, "node_modules/x/node_modules/a")
+	g, err := b.Build()
+	if err != nil || g.Nodes[first].InstallPath != "node_modules/a" {
+		t.Fatalf("install path = %q, %v", g.Nodes[first].InstallPath, err)
+	}
 }
 
 // TestBuilderDedupesEdgesAndMirrorsIn checks that identical edges collapse, edges
