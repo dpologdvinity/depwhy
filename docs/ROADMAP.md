@@ -45,7 +45,7 @@ Spec: `docs/SPEC.md` §15. Plan: `docs/PLAN.md` (Tasks 34–37).
 - `depwhy --dupes --across`: the same package at different versions across lockfiles in one repo.
 
 ## v1.0 — Stability
-- Freeze the JSON `schema: 1` and document it in `docs/json-schema.md`. Any break bumps `schema`.
+- Freeze the JSON `schema: 1` and document it in `docs/json-schema.md`. Any break bumps `schema`. Done; a test pins the key set.
 - Distribution: a Scoop bucket (`dpologdvinity/scoop-bucket`, which pulls each release). Done early, in v0.2.x: the Homebrew cask in `dpologdvinity/homebrew-tap`, `.deb`/`.rpm`/`.apk` packages with a signed apt repository, and the npm package `@kaitlynbassford/depwhy` (`npm/`, a launcher that downloads the right binary).
 - Shell completions (`depwhy completion bash|zsh|fish`), with package-name completion from the lockfile. Done.
 

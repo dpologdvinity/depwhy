@@ -38,8 +38,12 @@ func Normalize(ecosystem, name string) string {
 }
 
 // Find returns non-root nodes matching name (normalized) and, if given, version, sorted by compareVersions.
+// Go module versions always start with "v", so for Go "1.2.0" also matches "v1.2.0".
 func (g *Graph) Find(name, version string) []int {
 	want := Normalize(g.Ecosystem, name)
+	if g.Ecosystem == "go" && version != "" && !strings.HasPrefix(version, "v") {
+		version = "v" + version
+	}
 	var out []int
 	for i, n := range g.Nodes {
 		if n.Root || Normalize(g.Ecosystem, n.Name) != want || (version != "" && n.Version != version) {
@@ -70,7 +74,7 @@ func Suggest(gs []*Graph, name string) []string {
 				continue
 			}
 			seen[norm] = true
-			if d := levenshtein(q, norm); d <= 2 {
+			if d := levenshtein(q, norm); d > 0 && d <= 2 { // the name itself already failed to match
 				cands = append(cands, cand{norm, d})
 			}
 		}

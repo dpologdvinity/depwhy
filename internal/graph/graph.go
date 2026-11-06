@@ -38,7 +38,7 @@ type Node struct {
 	ID        string // "<name>@<version>", or "root:<label>" for roots; unique per graph
 	Name      string // package name, or the label for a root
 	Version   string // "" for roots that have none
-	Ecosystem string // "npm" | "python" | "cargo"
+	Ecosystem string // "npm" | "python" | "cargo" | "go"
 	Root      bool   // true for the project and workspace members
 	// InstallPath is where the package is installed, relative to the
 	// lockfile's directory and slash-separated: the package-lock.json

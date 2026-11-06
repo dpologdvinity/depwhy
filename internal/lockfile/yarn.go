@@ -78,9 +78,9 @@ type yarnManifest struct {
 	Workspaces           json.RawMessage   `json:"workspaces"` // a list of globs, or {"packages": [...]}
 }
 
-// readYarnManifest reads dir/package.json. The error wraps fs.ErrNotExist when
+// readPackageJSON reads dir/package.json (used by the yarn and bun parsers). The error wraps fs.ErrNotExist when
 // the file is missing.
-func readYarnManifest(dir string) (yarnManifest, error) {
+func readPackageJSON(dir string) (yarnManifest, error) {
 	var m yarnManifest
 	p := filepath.Join(dir, "package.json")
 	raw, err := os.ReadFile(p)
@@ -220,7 +220,7 @@ func parseYarnBerry(path string, data []byte) (*graph.Graph, []string, error) {
 		_, rng := yarnSplit(locator)
 		if ws, ok := strings.CutPrefix(rng, "workspace:"); ok {
 			version := e.Version // always 0.0.0-use.local
-			m, err := readYarnManifest(filepath.Join(dir, filepath.FromSlash(ws)))
+			m, err := readPackageJSON(filepath.Join(dir, filepath.FromSlash(ws)))
 			if err == nil {
 				manifests[k] = m
 				if m.Version != "" {
@@ -368,7 +368,7 @@ func parseYarnClassic(path string, data []byte) (*graph.Graph, []string, error) 
 
 	dir := filepath.Dir(path)
 	rootLabel := "app"
-	pj, err := readYarnManifest(dir)
+	pj, err := readPackageJSON(dir)
 	hasManifest := err == nil
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		warns = append(warns, err.Error())
@@ -396,7 +396,7 @@ func parseYarnClassic(path string, data []byte) (*graph.Graph, []string, error) 
 				continue
 			}
 			seen[d] = true
-			m, err := readYarnManifest(d)
+			m, err := readPackageJSON(d)
 			if err != nil {
 				warns = append(warns, err.Error())
 				continue

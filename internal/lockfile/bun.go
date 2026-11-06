@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/dpologdvinity/depwhy/internal/graph"
@@ -115,7 +116,15 @@ func ParseBun(path string, data []byte) (*graph.Graph, []string, error) {
 	}
 	wsNodes := map[string]int{}
 	for _, k := range wsKeys {
-		wsNodes[k] = b.Root(label(k), lock.Workspaces[k].Version)
+		version := lock.Workspaces[k].Version
+		if version == "" {
+			// bun.lock omits the project's own version; read it from the
+			// workspace's package.json when there is one.
+			if m, err := readPackageJSON(filepath.Join(filepath.Dir(path), filepath.FromSlash(k))); err == nil {
+				version = m.Version
+			}
+		}
+		wsNodes[k] = b.Root(label(k), version)
 	}
 	if len(wsNodes) == 0 {
 		wsNodes[""] = b.Root("app", "")

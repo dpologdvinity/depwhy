@@ -1,6 +1,7 @@
+c@v1.0.0  go · go.mod
+└── app (root, prod)
+direct dependency of app (prod)
 
 --- stderr
-depwhy: c@1.0.0 not found in go.mod
-did you mean: c, a, b
 
---- exit=1
+--- exit=0
