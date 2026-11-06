@@ -972,8 +972,14 @@ every word typed before the cursor. It loads the lockfiles those words select
 (`-C`, `-l`, `-e`, `-r`), ignores the mode flags and positional arguments, and
 prints each non-root package name once, sorted, one per line. It never makes
 network requests and never runs `go` or `cargo` (`--online`, `--go-graph` and
-`--cargo-metadata` are ignored). Errors exit 2 like any run; the scripts discard
-stderr, so a directory without a lockfile simply completes nothing.
+`--cargo-metadata` are ignored; so are `--help` and `--version`). Errors exit 2
+like any run; the scripts discard stderr, so a directory without a lockfile simply
+completes nothing.
+
+bash hands the completion function the words as typed and splits `--flag=value`
+at `=`. The bash script therefore strips one level of quoting (`'…'`, `"…"`,
+backslash) from each word and joins `--flag`, `=`, `value` again before calling
+`--complete-packages`, by scanning characters, never with `eval`.
 
 Package names are untrusted input. The scripts must never evaluate them: bash
 reads them line by line (not through `compgen -W`, which expands its word list)

@@ -146,12 +146,22 @@ func runShell(t *testing.T, dir string, env []string, shell string, args ...stri
 }
 
 // TestBashCompletion sources the bash script and calls its completion function
-// the way bash does on Tab.
+// the way bash does on Tab. COMP_WORDS holds the words as typed, quotes and
+// backslashes included, with --flag=value split into three words at "=", so the
+// "my dir" project must be found through each of those spellings.
 func TestBashCompletion(t *testing.T) {
 	bash := lookShell(t, "bash")
 	dir, env := shellProject(t)
 	_, script, _ := run("completion", "bash")
 	if err := os.WriteFile(filepath.Join(dir, "depwhy.bash"), []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spaced := filepath.Join(dir, "my dir")
+	if err := os.Mkdir(spaced, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lock := `{"lockfileVersion":3,"packages":{"":{"dependencies":{"lodash-sp":"1.0.0"}},"node_modules/lodash-sp":{"version":"1.0.0"}}}`
+	if err := os.WriteFile(filepath.Join(spaced, "package-lock.json"), []byte(lock), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out := runShell(t, dir, env, bash, "-c", `
@@ -163,6 +173,15 @@ comp depwhy ""
 comp depwhy --dup
 comp depwhy -e c
 comp depwhy -C "$PWD" --json lo
+comp depwhy -C '"my dir"' lo
+comp depwhy -C "'my dir'" lo
+comp depwhy -C 'my\ dir' lo
+comp depwhy -C '"my"\ "dir"' lo
+comp depwhy --dir = '"my dir"' lo
+comp depwhy --dir = 'my\ dir' --json lo
+comp depwhy -C '"$(touch PWNED)"' lo
+comp depwhy -C '$(touch PWNED)' lo
+comp depwhy --dir = ""
 `)
 	want := `lodash
 @babel/core
@@ -170,6 +189,15 @@ comp depwhy -C "$PWD" --json lo
 --dupes
 cargo
 lodash
+lodash-sp
+lodash-sp
+lodash-sp
+lodash-sp
+lodash-sp
+lodash-sp
+
+
+my dir
 `
 	if out != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", out, want)

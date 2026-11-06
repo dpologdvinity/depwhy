@@ -119,8 +119,41 @@ _depwhy_lines() {
     while IFS= read -r line; do COMPREPLY+=("$line"); done
 }
 
+# _depwhy_unquote removes one level of shell quoting ('...', "...", backslash)
+# from $1 and stores the result in _depwhy_word. It only scans characters and
+# never evaluates anything: the words may come from a hostile lockfile path.
+_depwhy_unquote() {
+    local s=$1 out= c q= i=0
+    while (( i < ${#s} )); do
+        c=${s:i:1}
+        i=$((i + 1))
+        if [[ $q == "'" ]]; then
+            if [[ $c == "'" ]]; then q=; else out+=$c; fi
+        elif [[ $q == '"' ]]; then
+            if [[ $c == '"' ]]; then
+                q=
+            elif [[ $c == '\' && ( ${s:i:1} == '"' || ${s:i:1} == '\' || ${s:i:1} == '$' ) ]]; then
+                out+=${s:i:1}
+                i=$((i + 1))
+            else
+                out+=$c
+            fi
+        elif [[ $c == "'" || $c == '"' ]]; then
+            q=$c
+        elif [[ $c == '\' ]]; then
+            out+=${s:i:1}
+            i=$((i + 1))
+        else
+            out+=$c
+        fi
+    done
+    _depwhy_word=$out
+}
+
 _depwhy() {
     local cur=${COMP_WORDS[COMP_CWORD]} prev=${COMP_WORDS[COMP_CWORD-1]}
+    # COMP_WORDBREAKS splits --flag=value at "=": complete the value of --flag.
+    if [[ $prev == = && COMP_CWORD -ge 2 ]]; then prev=${COMP_WORDS[COMP_CWORD-2]}; fi
     COMPREPLY=()
     case $prev in
 %s    esac
@@ -129,9 +162,18 @@ _depwhy() {
         return
     fi
     # Pass the words typed so far, so -C, -l, -e and -r select the same lockfiles.
-    local args=() word
-    for word in "${COMP_WORDS[@]:1:COMP_CWORD-1}"; do
-        args+=("${word/#\~/$HOME}")
+    # They arrive as typed: strip the quoting and re-join --flag = value.
+    local args=() word i=1 _depwhy_word
+    while (( i < COMP_CWORD )); do
+        _depwhy_unquote "${COMP_WORDS[i]}"
+        word=${_depwhy_word/#\~/$HOME}
+        if [[ $word == --* && ${COMP_WORDS[i+1]} == = ]] && (( i + 2 < COMP_CWORD )); then
+            _depwhy_unquote "${COMP_WORDS[i+2]}"
+            word+="=${_depwhy_word/#\~/$HOME}"
+            i=$((i + 2))
+        fi
+        args+=("$word")
+        i=$((i + 1))
     done
     # Package names come from a lockfile, which may be hostile: never pass them to
     # compgen -W, which runs expansions (including command substitution) on its
