@@ -159,3 +159,19 @@ func TestSizePython(t *testing.T) {
 		t.Fatalf("why:\n%s", out)
 	}
 }
+
+// TestMissingVenvWarns checks that an explicit --venv that cannot be used is
+// reported once per run, however many Python lockfiles need it, while a missing
+// default .venv stays silent.
+func TestMissingVenvWarns(t *testing.T) {
+	uv, uv2 := stageFixture(t, project("uv")), stageFixture(t, project("uv"))
+	missing := filepath.Join(t.TempDir(), "nope")
+	code, _, errs := run("-l", filepath.Join(uv, "uv.lock"), "-l", filepath.Join(uv2, "uv.lock"), "--venv", missing, "--heaviest")
+	want := "depwhy: warning: --venv: virtualenv not found: " + missing + "; Python packages are not measured\n"
+	if code != 0 || errs != want {
+		t.Fatalf("code=%d stderr=%q, want %q", code, errs, want)
+	}
+	if code, _, errs = run("-C", uv, "--heaviest"); code != 0 || errs != "" {
+		t.Fatalf("default .venv: code=%d stderr=%q", code, errs)
+	}
+}

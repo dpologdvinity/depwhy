@@ -149,7 +149,7 @@ was wrong.
 | `--dupes` | List packages installed at more than one version. |
 | `--across` | With `--dupes`, aggregate versions across all loaded lockfiles. |
 | `--heaviest [N]` | Rank the N (default 10) direct dependencies that free the most disk space; `--heaviest 5` or `--heaviest=5`. Not combinable with `--online`. |
-| `--venv` | Path to Python virtualenv (default `.venv` next to the lockfile). |
+| `--venv` | Path to the Python virtualenv used for sizes (default `.venv` next to each lockfile). A relative path is relative to the current directory, not `-C`. If the given virtualenv cannot be used, depwhy warns once and leaves Python packages unmeasured. |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
 | `-r`, `--recursive` | Search subdirectories, respecting `.gitignore`; cannot be combined with `-l`. |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |

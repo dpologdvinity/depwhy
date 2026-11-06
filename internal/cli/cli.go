@@ -237,6 +237,8 @@ type session struct {
 
 	scanner *size.Scanner                            // shared by every size provider
 	sizers  map[*graph.Graph]func(int) (int64, bool) // size provider per graph, see sizeOf
+
+	venvWarned bool // the unusable --venv was reported; once per run is enough
 }
 
 // warn prints a warning to stderr and keeps it for the JSON document. Warnings
@@ -407,10 +409,16 @@ func (s *session) sizeOf(g *graph.Graph) func(int) (int64, bool) {
 			return s.scanner.NPMSize(dir, n.InstallPath, n.Name, n.Version)
 		}
 	case "python":
-		if site, venv, err := size.FindPythonSitePackages(dir, s.o.venv); err == nil {
+		site, venv, err := size.FindPythonSitePackages(dir, s.o.venv)
+		switch {
+		case err == nil:
 			measure = func(n graph.Node) (int64, error) {
 				return s.scanner.PythonSize(site, venv, n.Name, n.Version)
 			}
+		case s.o.venv != "" && !s.venvWarned:
+			// A missing default .venv is normal; an explicit --venv is not.
+			s.venvWarned = true
+			s.warn(fmt.Sprintf("--venv: %v; Python packages are not measured", err))
 		}
 	}
 	type answer struct {
