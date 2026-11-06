@@ -137,6 +137,11 @@ func resolveWithin(base, rel string) (string, error) {
 	if !filepath.IsLocal(rel) {
 		return "", fmt.Errorf("path %q leaves %s", rel, base)
 	}
+	// Absolute first: an absolute symlink target never relates to a relative base.
+	base, err := filepath.Abs(base)
+	if err != nil {
+		return "", err
+	}
 	realBase, err := filepath.EvalSymlinks(base)
 	if err != nil {
 		return "", err
@@ -289,6 +294,14 @@ func (s *Scanner) PythonSize(sitePackages, venvRoot, name, version string) (int6
 // RECORD file (CSV: path, hash, size). Recorded sizes are not trusted; each
 // file is checked on disk and counted once.
 func measureRecord(sitePackages, venvRoot, record string) (int64, error) {
+	// Absolute paths, so resolved directories compare with the resolved root.
+	venvRoot, err := filepath.Abs(venvRoot)
+	if err != nil {
+		return 0, err
+	}
+	if sitePackages, err = filepath.Abs(sitePackages); err != nil {
+		return 0, err
+	}
 	root, err := filepath.EvalSymlinks(venvRoot)
 	if err != nil {
 		return 0, err
@@ -304,6 +317,7 @@ func measureRecord(sitePackages, venvRoot, record string) (int64, error) {
 	realDirs := map[string]string{} // directory → resolved directory ("" if unresolvable)
 	seen := map[string]bool{}
 	var total int64
+	counted := 0
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -337,7 +351,12 @@ func measureRecord(sitePackages, venvRoot, record string) (int64, error) {
 		seen[p] = true
 		if fi, err := os.Lstat(p); err == nil && fi.Mode().IsRegular() {
 			total += fi.Size()
+			counted++
 		}
+	}
+	if counted == 0 {
+		// A real RECORD lists at least its own dist-info files.
+		return 0, fmt.Errorf("%s: no listed file is installed", record)
 	}
 	return total, nil
 }

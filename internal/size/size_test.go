@@ -213,6 +213,43 @@ func TestNPMSizePnpm(t *testing.T) {
 	}
 }
 
+// TestNPMSizeRelativeBase checks the default invocation (project dir ".")
+// with an absolute symlink that stays inside the project, as Windows pnpm
+// junctions and some tools create.
+func TestNPMSizeRelativeBase(t *testing.T) {
+	proj := t.TempDir()
+	write(t, proj, "vendor/x/package.json", manifest("x", "1.0.0"))
+	symlink(t, filepath.Join(proj, "vendor", "x"), filepath.Join(proj, "node_modules", "x"))
+	t.Chdir(proj)
+	if got, err := NewScanner().NPMSize(".", "", "x", "1.0.0"); err != nil || got != int64(len(manifest("x", "1.0.0"))) {
+		t.Fatalf("x = %d, %v", got, err)
+	}
+}
+
+// TestPythonSizeRelativeVenv checks RECORD containment with a relative venv
+// root whose site-packages is reached through an absolute symlink.
+func TestPythonSizeRelativeVenv(t *testing.T) {
+	root, site := venv(t)
+	write(t, site, "demo-1.0.dist-info/RECORD", "demo.py,,\n")
+	write(t, site, "demo.py", "abc")
+	symlink(t, site, filepath.Join(root, "site-link"))
+	t.Chdir(filepath.Dir(root))
+	got, err := NewScanner().PythonSize(filepath.Join(".venv", "site-link"), ".venv", "demo", "1.0")
+	if err != nil || got != 3 {
+		t.Fatalf("demo = %d, %v; want 3", got, err)
+	}
+}
+
+// TestPythonSizeEmptyRecord checks that a RECORD with nothing countable is
+// unknown, not "0 B".
+func TestPythonSizeEmptyRecord(t *testing.T) {
+	root, site := venv(t)
+	write(t, site, "gone-1.0.dist-info/RECORD", "gone/missing.py,,\n")
+	if got, err := NewScanner().PythonSize(site, root, "gone", "1.0"); err == nil {
+		t.Fatalf("gone = %d, want unknown", got)
+	}
+}
+
 // venv creates <dir>/.venv with a site-packages dir and returns both paths.
 func venv(t *testing.T) (root, site string) {
 	t.Helper()
