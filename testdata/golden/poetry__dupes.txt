@@ -6,5 +6,6 @@ c  2 versions
 --- stderr
 depwhy: warning: poetry.lock: ambiguous dependency c of a; picked first
 depwhy: warning: poetry.lock: ambiguous dependency c of b; picked first
+depwhy: warning: poetry.lock: c@2.0.0 is not reachable from any root
 
 --- exit=0

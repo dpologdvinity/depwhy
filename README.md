@@ -174,10 +174,11 @@ downloaded and no `go.mod`, `go.sum` or `Cargo.lock` is changed. If the tool is
 missing or fails, for example because a module or crate is not in the local
 cache, depwhy warns and reads the file alone. **Use them only on projects you
 trust**: go and cargo read the project's own configuration. depwhy stops a
-`rust-toolchain.toml` or the `rustc`/wrapper settings of `.cargo/config.toml`
-from choosing which binaries run (by setting `RUSTUP_TOOLCHAIN` to your
-`rustup default`, `RUSTC=rustc` and empty `RUSTC_WRAPPER`), but cannot vet
-everything else cargo reads.
+`rust-toolchain.toml` or the `rustc`, wrapper and `rustflags` settings of
+`.cargo/config.toml` from choosing what runs (by setting `RUSTUP_TOOLCHAIN` to
+your `rustup default`, `RUSTC=rustc`, and empty `RUSTC_WRAPPER` and
+`CARGO_ENCODED_RUSTFLAGS`; with rustup but no default toolchain it skips
+`cargo metadata`), but cannot vet everything else cargo reads.
 
 ### Reading the output
 
@@ -289,7 +290,7 @@ individual files. It does not enable recursion itself. Its JSON adds
 
 - **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots. Use `--cargo-metadata` when cargo is available on PATH for precise dependency discrimination and workspace resolution.
 - **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`; only the versions minimal version selection picks are kept. A `replace` keeps the dependency's module path; only a same-path version pin changes the version shown.
-- **Poetry**: direct dependencies are classified from `pyproject.toml`: the `main` group and `[project].dependencies` are `prod`, every other group (dev, test, lint, docs, ...) is `dev`, and extras are `optional`. Without `pyproject.toml`, depwhy falls back to the lockfile's `groups` (Poetry 2.x) or `category` (before 1.5); Poetry 1.5-1.8 lockfiles record neither, so every package then counts as `prod`.
+- **Poetry**: direct dependencies are classified from `pyproject.toml`: the `main` group and `[project].dependencies` are `prod`, every other group (dev, test, lint, docs, ...) and every PEP 735 `[dependency-groups]` group is `dev`, and extras are `optional`. Without `pyproject.toml`, depwhy falls back to the lockfile's `groups` (Poetry 2.x) or `category` (before 1.5); Poetry 1.5-1.8 lockfiles record neither, so every package then counts as `prod`.
 - **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.

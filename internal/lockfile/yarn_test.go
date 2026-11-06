@@ -362,3 +362,45 @@ func TestYarnPackageName(t *testing.T) {
 		}
 	}
 }
+
+// TestParseYarnClassicRangesWithSpaces checks a lockfile written by Yarn
+// 1.22.22 whose dependency ranges contain spaces (">=7.0.0 <8",
+// "^6.0.0 || ^7.0.0"): the whole range must be used for the descriptor lookup,
+// in dependencies and optionalDependencies, so each edge reaches the version
+// that range resolved to.
+func TestParseYarnClassicRangesWithSpaces(t *testing.T) {
+	g, warns := parseYarnFiles(t, map[string]string{
+		"package.json":   `{"name": "app", "version": "1.0.0", "dependencies": {"a": "file:./a", "semver": "5 || 6"}}`,
+		"a/package.json": `{"name": "a", "version": "1.0.0", "dependencies": {"semver": ">=7.0.0 <8"}, "optionalDependencies": {"lru-cache": "^6.0.0 || ^7.0.0"}}`,
+		"yarn.lock": `# yarn lockfile v1
+
+
+"a@file:./a":
+  version "1.0.0"
+  dependencies:
+    semver ">=7.0.0 <8"
+  optionalDependencies:
+    lru-cache "^6.0.0 || ^7.0.0"
+
+"lru-cache@^6.0.0 || ^7.0.0":
+  version "7.18.3"
+
+"semver@5 || 6":
+  version "6.3.2"
+
+"semver@>=7.0.0 <8":
+  version "7.8.6"
+`,
+	})
+	if len(warns) > 0 {
+		t.Fatalf("unexpected warnings: %v", warns)
+	}
+	if got, want := edgeStrings(g), []string{
+		"a@1.0.0 -> lru-cache@7.18.3 optional",
+		"a@1.0.0 -> semver@7.8.6 prod",
+		"root:app -> a@1.0.0 prod",
+		"root:app -> semver@6.3.2 prod",
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("edges = %v\nwant %v", got, want)
+	}
+}

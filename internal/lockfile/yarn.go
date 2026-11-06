@@ -343,9 +343,9 @@ func parseYarnClassic(path string, data []byte) (*graph.Graph, []string, error) 
 		}
 
 		if strings.HasPrefix(line, "    ") && section != nil {
-			parts := strings.Fields(trimmed)
-			if len(parts) >= 2 {
-				section[strings.Trim(parts[0], `"' `)] = strings.Trim(parts[1], `"' `)
+			// Ranges may contain spaces (`c ">=1.0.0 <2"`), so split at the first one only.
+			if name, rng, ok := strings.Cut(trimmed, " "); ok {
+				section[strings.Trim(name, `"' `)] = strings.Trim(rng, `"' `)
 			}
 		}
 	}
