@@ -117,6 +117,7 @@ depwhy [flags] <package>[@version]      explain why <package> is installed
 depwhy [flags] --remove <package>       impact of removing a direct dependency
 depwhy [flags] --dupes                  packages installed at more than one version
 depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
+depwhy completion bash|zsh|fish         print a shell completion script
 ```
 
 Run it in a project directory, or point it at one with `-C`:
@@ -145,15 +146,15 @@ for Cargo. If nothing matches, depwhy suggests close names.
 | `--remove` | Removal-impact mode. The argument is a direct dependency. |
 | `--dupes` | List packages installed at more than one version. |
 | `--across` | With `--dupes`, aggregate versions across all loaded lockfiles. |
-| `--heaviest` | Rank direct dependencies by exclusive transitive size freed (default 10). |
+| `--heaviest [N]` | Rank the N (default 10) direct dependencies that free the most disk space; `--heaviest 5` or `--heaviest=5`. Not combinable with `--online`. |
 | `--venv` | Path to Python virtualenv (default `.venv` in target directory). |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
 | `-r`, `--recursive` | Search subdirectories, respecting `.gitignore`; cannot be combined with `-l`. |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |
 | `-e`, `--ecosystem` | Restrict to `npm`, `python`, `cargo`, or `go`. |
 | `--prod` | Ignore dev dependencies, and everything reachable only through them. |
-| `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). |
-| `--all` | Print all paths without the 10-path cap. |
+| `-d`, `--depth` | Max levels printed in the why tree (0 = unlimited). Why mode only. |
+| `--all` | Print all paths without the 10-path cap. Why mode only. |
 | `--json` | Emit JSON. |
 | `--go-graph` | For `go.mod`, add transitive edges from `go mod graph` (needs `go` on PATH). Runs offline; see the note below. |
 | `--cargo-metadata` | For `Cargo.lock`, use `cargo metadata` for dev/build edges and workspace members (needs `cargo` on PATH). Runs offline; see the note below. |
@@ -195,6 +196,28 @@ everything else cargo reads.
 Errors and warnings go to stderr as `depwhy: ...` and `depwhy: warning: ...`.
 Warnings never change the exit code.
 
+### Shell completion
+
+Tab completes flags, flag values (directories, lockfiles, ecosystems), and package
+names read from the lockfiles that the command line so far selects, so
+`depwhy -C ../api lo<Tab>` offers the names in `../api`'s lockfile.
+
+```sh
+# bash (3.2 or newer): add to ~/.bashrc
+source <(depwhy completion bash)
+
+# zsh: add to ~/.zshrc (after compinit)
+source <(depwhy completion zsh)
+
+# fish
+depwhy completion fish > ~/.config/fish/completions/depwhy.fish
+```
+
+Completion never uses the network and never runs other programs, even when
+`--online`, `--go-graph` or `--cargo-metadata` is on the command line. Package
+names are treated as untrusted text: they are offered as completions, never
+evaluated by the shell.
+
 ## Online health information
 
 By default depwhy never touches the network. With `--online` it also looks up the
@@ -225,10 +248,10 @@ output, so avoid `--online` on projects whose package names are confidential.
 |---|---|---|
 | `pnpm-lock.yaml` | lockfileVersion 9.x | npm |
 | `yarn.lock` | Berry (v2+) and Classic (v1) | npm |
-| `bun.lock` | Bun 1.2+ JSONC | npm |
+| `bun.lock` | Bun 1.2+ text lockfile (JSONC) | npm |
 | `package-lock.json` | lockfileVersion 1, 2, and 3 | npm |
 | `uv.lock` | version 1 | python |
-| `poetry.lock` | all versions | python |
+| `poetry.lock` | Poetry 1.x and 2.x | python |
 | `Cargo.lock` | versions 3 and 4 (plus `--cargo-metadata`) | cargo |
 | `go.mod` | all versions (plus `--go-graph`) | go |
 
@@ -264,9 +287,11 @@ individual files. It does not enable recursion itself. Its JSON adds
 
 - **Cargo**: `Cargo.lock` records no dev or build edges, so every edge is shown as `prod`. Path dependencies outside a workspace also lack a source and appear as roots. Use `--cargo-metadata` when cargo is available on PATH for precise dependency discrimination and workspace resolution.
 - **Go**: `go.mod` distinguishes direct dependencies (`prod`) from `// indirect` requirements. Pass `--go-graph` when go is available on PATH to refine transitive edges via `go mod graph`; only the versions minimal version selection picks are kept. A `replace` keeps the dependency's module path; only a same-path version pin changes the version shown.
+- **Poetry**: direct dependencies are classified from `pyproject.toml`: the `main` group and `[project].dependencies` are `prod`, every other group (dev, test, lint, docs, ...) is `dev`, and extras are `optional`. Without `pyproject.toml`, depwhy falls back to the lockfile's `groups` (Poetry 2.x) or `category` (before 1.5); Poetry 1.5-1.8 lockfiles record neither, so every package then counts as `prod`.
 - **Python markers**: environment markers in `uv.lock` and `poetry.lock` are ignored, so every edge counts on every platform.
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.
+- **Yarn**: dev dependencies of a project or workspace come from its `package.json`, because Yarn Berry lists them with the regular ones in `yarn.lock`; without the `package.json` they show as `prod`. A `patch:` package (including Yarn's builtin typescript/fsevents/resolve patches) is the same node as the package it patches. Classic workspace globs are expanded with Go's `filepath.Glob` (no `**` or `!`).
 - Advisory and deprecation data is only as complete as OSV and the public registries; `--online` does not read private registries.
 
 ## JSON output

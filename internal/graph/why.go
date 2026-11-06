@@ -87,7 +87,7 @@ func (g *Graph) DevOnly() []bool {
 	return g.devOnly
 }
 
-// less orders nodes roots first, then by name, then version.
+// less orders nodes roots first, then by name, then version (compareVersions).
 func (g *Graph) less(a, b int) bool {
 	na, nb := g.Nodes[a], g.Nodes[b]
 	if na.Root != nb.Root {
@@ -96,7 +96,7 @@ func (g *Graph) less(a, b int) bool {
 	if na.Name != nb.Name {
 		return na.Name < nb.Name
 	}
-	return na.Version < nb.Version
+	return compareVersions(na.Version, nb.Version) < 0
 }
 
 // parents returns one incoming edge per distinct source (lowest Kind wins), sorted

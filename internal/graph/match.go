@@ -37,7 +37,7 @@ func Normalize(ecosystem, name string) string {
 	return name
 }
 
-// Find returns non-root nodes matching name (normalized) and, if given, version, sorted by Version.
+// Find returns non-root nodes matching name (normalized) and, if given, version, sorted by compareVersions.
 func (g *Graph) Find(name, version string) []int {
 	want := Normalize(g.Ecosystem, name)
 	var out []int
@@ -47,7 +47,7 @@ func (g *Graph) Find(name, version string) []int {
 		}
 		out = append(out, i)
 	}
-	sort.SliceStable(out, func(a, b int) bool { return g.Nodes[out[a]].Version < g.Nodes[out[b]].Version })
+	sort.SliceStable(out, func(a, b int) bool { return compareVersions(g.Nodes[out[a]].Version, g.Nodes[out[b]].Version) < 0 })
 	return out
 }
 
