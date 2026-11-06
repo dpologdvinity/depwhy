@@ -117,6 +117,7 @@ depwhy [flags] <package>[@version]      explain why <package> is installed
 depwhy [flags] --remove <package>       impact of removing a direct dependency
 depwhy [flags] --dupes                  packages installed at more than one version
 depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
+depwhy completion bash|zsh|fish         print a shell completion script
 ```
 
 Run it in a project directory, or point it at one with `-C`:
@@ -179,6 +180,28 @@ for Cargo. If nothing matches, depwhy suggests close names.
 
 Errors and warnings go to stderr as `depwhy: ...` and `depwhy: warning: ...`.
 Warnings never change the exit code.
+
+### Shell completion
+
+Tab completes flags, flag values (directories, lockfiles, ecosystems), and package
+names read from the lockfiles that the command line so far selects, so
+`depwhy -C ../api lo<Tab>` offers the names in `../api`'s lockfile.
+
+```sh
+# bash (3.2 or newer): add to ~/.bashrc
+source <(depwhy completion bash)
+
+# zsh: add to ~/.zshrc (after compinit)
+source <(depwhy completion zsh)
+
+# fish
+depwhy completion fish > ~/.config/fish/completions/depwhy.fish
+```
+
+Completion never uses the network and never runs other programs, even when
+`--online`, `--go-graph` or `--cargo-metadata` is on the command line. Package
+names are treated as untrusted text: they are offered as completions, never
+evaluated by the shell.
 
 ## Online health information
 

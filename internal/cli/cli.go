@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sort"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -40,6 +41,7 @@ const usage = `usage:
   depwhy [flags] --remove <package>       impact of removing a direct dependency
   depwhy [flags] --dupes                  packages installed at more than one version
   depwhy [flags] --heaviest [N]           rank direct dependencies by exclusive size
+  depwhy completion bash|zsh|fish         print a shell completion script
   depwhy --version | --help
 
 flags:
@@ -64,6 +66,7 @@ type options struct {
 	venv                                    string   // v0.3: custom python virtualenv path
 	goGraph                                 bool     // v0.4: refine go mod graph (SPEC §14)
 	cargoMetadata                           bool     // v0.4: precise cargo metadata (SPEC §14)
+	completePackages                        bool     // hidden: list package names for shell completion
 	dir                                     string   // directory searched for lockfiles
 	lockfiles                               []string // explicit lockfile paths; disables detection
 	ecosystem                               string   // "", "npm", "python", "cargo", or "go"
@@ -98,6 +101,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&o.cargoMetadata, "cargo-metadata", false, "use cargo metadata for precise Cargo dependency discrimination")
 	fs.BoolVarP(&version, "version", "V", false, "print version and exit")
 	fs.BoolVarP(&help, "help", "h", false, "print usage and exit")
+	fs.BoolVar(&o.completePackages, completeFlag, false, "list package names for shell completion")
+	_ = fs.MarkHidden(completeFlag) // cannot fail: the flag was just defined
 
 	if err := fs.Parse(args); err != nil {
 		return usageErr(stderr, err.Error())
@@ -109,6 +114,19 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if version {
 		info, _ := debug.ReadBuildInfo()
 		fmt.Fprintf(stdout, "depwhy %s\n", resolveVersion(Version, info))
+		return 0
+	}
+	if o.completePackages {
+		// Called by the completion scripts with whatever the user typed so far,
+		// so the mode flags and arguments are ignored. Only the lockfile selection
+		// counts, and nothing slow or networked runs on a Tab press.
+		o.online, o.goGraph, o.cargoMetadata = false, false, false
+		return execute(&o, stdout, stderr)
+	}
+	if isCompletion(fs.Args()) {
+		if msg := writeCompletion(stdout, fs, fs.Arg(1)); msg != "" {
+			return usageErr(stderr, msg)
+		}
 		return 0
 	}
 	if msg := validate(&o, fs.Args()); msg != "" {
@@ -259,6 +277,9 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		s.graphs = append(s.graphs, g)
 	}
 
+	if o.completePackages {
+		return s.packageNames()
+	}
 	if f, ok := stdout.(*os.File); ok {
 		s.style.Color = render.Enabled(f, o.noColor)
 	}
@@ -272,6 +293,26 @@ func execute(o *options, stdout, stderr io.Writer) int {
 		return s.heaviest()
 	}
 	return s.query()
+}
+
+// packageNames prints every non-root package name in the loaded lockfiles once,
+// sorted, for the shell completion scripts.
+func (s *session) packageNames() int {
+	seen := map[string]bool{}
+	var names []string
+	for _, g := range s.graphs {
+		for _, n := range g.Nodes {
+			if !n.Root && !seen[n.Name] {
+				seen[n.Name] = true
+				names = append(names, n.Name)
+			}
+		}
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		fmt.Fprintln(s.stdout, n)
+	}
+	return 0
 }
 
 // dupes runs --dupes mode: one block of text (or one JSON result) per lockfile.

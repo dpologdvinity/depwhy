@@ -811,3 +811,33 @@ and `yanked` fields. A clean empty run has `"results": []`.
 - Mixed monorepo fixture and deterministic text/JSON golden tests.
 - Documentation and CLI help cover the new flags.
 - Formatting, vet, lint and race tests pass; total statement coverage ≥ 90%.
+
+## 16. Shell completion (v1.0)
+
+`depwhy completion bash|zsh|fish` prints a completion script to stdout and exits 0.
+Any other shell name is a usage error (exit 2). The command is recognized only as
+exactly two positional words, `completion <shell>`, which is otherwise a usage
+error, so a lone `depwhy completion` is still a query for a package named
+`completion`.
+
+The scripts complete:
+- flags, generated from the flag set, so a new flag needs no script change;
+- values: directories for `-C` and `--venv`, files for `-l`, `npm python cargo go`
+  for `-e`, nothing for `--depth`;
+- package names everywhere else.
+
+Package names come from the hidden flag `--complete-packages`. The script passes it
+every word typed before the cursor. It loads the lockfiles those words select
+(`-C`, `-l`, `-e`, `-r`), ignores the mode flags and positional arguments, and
+prints each non-root package name once, sorted, one per line. It never makes
+network requests and never runs `go` or `cargo` (`--online`, `--go-graph` and
+`--cargo-metadata` are ignored). Errors exit 2 like any run; the scripts discard
+stderr, so a directory without a lockfile simply completes nothing.
+
+Package names are untrusted input. The scripts must never evaluate them: bash
+reads them line by line (not through `compgen -W`, which expands its word list)
+and quotes each with `printf %q`; zsh adds them with `compadd`; fish takes them
+from a command substitution. A test runs each shell against a lockfile whose
+package name is `$(touch PWNED)`.
+
+The bash script works with bash 3.2 (the macOS default) and newer.
