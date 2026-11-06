@@ -147,7 +147,7 @@ for Cargo. If nothing matches, depwhy suggests close names.
 | `--dupes` | List packages installed at more than one version. |
 | `--across` | With `--dupes`, aggregate versions across all loaded lockfiles. |
 | `--heaviest [N]` | Rank the N (default 10) direct dependencies that free the most disk space; `--heaviest 5` or `--heaviest=5`. Not combinable with `--online`. |
-| `--venv` | Path to Python virtualenv (default `.venv` in target directory). |
+| `--venv` | Path to Python virtualenv (default `.venv` next to the lockfile). |
 | `-C`, `--dir` | Directory to look for lockfiles in (default `.`). |
 | `-r`, `--recursive` | Search subdirectories, respecting `.gitignore`; cannot be combined with `-l`. |
 | `-l`, `--lockfile` | Use these lockfile paths instead of auto-detection (repeatable). |
@@ -277,6 +277,7 @@ individual files. It does not enable recursion itself. Its JSON adds
 - **Path cap**: the why tree and JSON paths stop at 10 routes unless you pass `--all`.
 - **Workspace members** are treated as roots, so they cannot themselves be queried.
 - Advisory and deprecation data is only as complete as OSV and the public registries; `--online` does not read private registries.
+- **Sizes** are measured only when the project is installed, next to its lockfile (`node_modules`, or `.venv`/`--venv` for Python; cargo and go are not measured). A package is measured only if the installed copy is exactly the locked name and version and lies inside the project; anything else is left unmeasured rather than guessed. Freed totals count unmeasured packages, such as another platform's optional `fsevents` or `@esbuild/*`, as 0 and say how many there were (`3 not measured`). A package installed at several paths is measured once. In JSON, size keys are absent when unmeasured (SPEC §13.5).
 
 ## JSON output
 
@@ -311,7 +312,8 @@ not-found run adds `suggestions`. For example, `depwhy --json c`:
 }
 ```
 
-The full schema, including `--remove` and `--dupes`, is in [docs/SPEC.md](docs/SPEC.md) §7.3.
+The full schema, including `--remove` and `--dupes`, is in [docs/SPEC.md](docs/SPEC.md) §7.3;
+the size fields (`size_bytes`, `freed_size_bytes`, `freed_unmeasured`) are in §13.5.
 The schema becomes a stability promise at 1.0.
 
 ## How it works
