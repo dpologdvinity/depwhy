@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -173,33 +174,55 @@ func ParseCargoMetadata(path string, data []byte) (*graph.Graph, []string, error
 // or touches the network. On failure it returns a warning and the error; the
 // caller then falls back to ParseCargo.
 func parseCargoWithCLI(lockPath string) (*graph.Graph, []string, error) {
-	dir := filepath.Dir(lockPath)
-	out, err := runTool(dir, cargoEnv(), "cargo", "metadata", "--locked", "--offline", "--format-version", "1",
-		"--manifest-path", filepath.Join(dir, "Cargo.toml"))
+	env, err := cargoEnv()
+	if err != nil {
+		return nil, []string{fmt.Sprintf("cargo metadata not run: %v; falling back to Cargo.lock", err)}, err
+	}
+	// cargo runs in the lockfile's directory, so the manifest path is relative
+	// to it; joining that directory again breaks relative lockfile paths.
+	out, err := runTool(filepath.Dir(lockPath), env, "cargo", "metadata", "--locked", "--offline", "--format-version", "1",
+		"--manifest-path", "Cargo.toml")
 	if err != nil {
 		return nil, []string{fmt.Sprintf("cargo metadata failed: %v; falling back to Cargo.lock", err)}, err
 	}
 	return ParseCargoMetadata(lockPath, out)
 }
 
-// cargoEnv returns environment overrides that stop the project from choosing
-// the binaries cargo runs: a rust-toolchain.toml (rustup would run its `path`
-// toolchain, or download its channel) and the rustc, rustc-wrapper and
-// rustc-workspace-wrapper settings of .cargo/config.toml, which cargo metadata
-// executes to query the compiler. Values the user set in the environment are
-// kept. Other project configuration is still read; see the README's warning.
-func cargoEnv() []string {
-	env := []string{"RUSTC_WRAPPER=", "RUSTC_WORKSPACE_WRAPPER="}
+// cargoEnv returns environment overrides that stop the project from running
+// code through cargo metadata, which executes rustc to query the compiler:
+//
+//   - RUSTC_WRAPPER and RUSTC_WORKSPACE_WRAPPER are always cleared, disabling
+//     the user's wrappers as well as the project's.
+//   - RUSTC=rustc replaces .cargo/config.toml's build.rustc unless the user
+//     set RUSTC.
+//   - CARGO_ENCODED_RUSTFLAGS is always set empty, which overrides every other
+//     rustflags source (build.rustflags, target.<triple>.rustflags,
+//     CARGO_BUILD_RUSTFLAGS, RUSTFLAGS). Cargo passes rustflags to its
+//     `rustc --print=cfg` query, and with an [env] RUSTC_BOOTSTRAP a project
+//     could make a stable rustc load a library via -Zcodegen-backend.
+//   - RUSTUP_TOOLCHAIN is set to `rustup default` unless the user set it, so a
+//     rust-toolchain.toml cannot pick a `path` toolchain or download one. If
+//     rustup is installed but names no default toolchain, cargoEnv returns an
+//     error and cargo metadata is not run. Without rustup, toolchain files
+//     are not read at all.
+//
+// Other project configuration is still read; see the README's warning.
+func cargoEnv() ([]string, error) {
+	env := []string{"RUSTC_WRAPPER=", "RUSTC_WORKSPACE_WRAPPER=", "CARGO_ENCODED_RUSTFLAGS="}
 	if _, ok := os.LookupEnv("RUSTC"); !ok {
 		env = append(env, "RUSTC=rustc")
 	}
-	if _, ok := os.LookupEnv("RUSTUP_TOOLCHAIN"); !ok {
-		// `rustup default` ignores override files, so this is the user's own choice.
-		if out, err := runTool("", nil, "rustup", "default"); err == nil {
-			if f := strings.Fields(string(out)); len(f) > 0 {
-				env = append(env, "RUSTUP_TOOLCHAIN="+f[0])
-			}
-		}
+	if _, ok := os.LookupEnv("RUSTUP_TOOLCHAIN"); ok {
+		return env, nil
 	}
-	return env
+	if _, err := exec.LookPath("rustup"); err != nil {
+		return env, nil
+	}
+	// `rustup default` ignores override files, so this is the user's own choice.
+	out, err := runTool("", nil, "rustup", "default")
+	f := strings.Fields(string(out))
+	if err != nil || len(f) == 0 {
+		return nil, fmt.Errorf("rustup has no default toolchain to pin, so a rust-toolchain.toml could choose one (set RUSTUP_TOOLCHAIN)")
+	}
+	return append(env, "RUSTUP_TOOLCHAIN="+f[0]), nil
 }

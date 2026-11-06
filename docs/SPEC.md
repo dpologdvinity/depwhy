@@ -753,16 +753,30 @@ v0.4 expands format support across JavaScript, Python, Go, and Rust ecosystems.
 
 #### 14.2.5 Cargo Precision
 - When `--cargo-metadata` is set, depwhy runs
-  `cargo metadata --locked --offline --format-version 1 --manifest-path <dir>/Cargo.toml`
-  in the lockfile's directory `<dir>`, with a 60-second timeout. `--locked`
+  `cargo metadata --locked --offline --format-version 1 --manifest-path Cargo.toml`
+  in the lockfile's directory, with a 60-second timeout. `--locked`
   makes cargo fail rather than rewrite an out-of-date Cargo.lock, and
   `--offline` keeps it off the network.
-- The environment sets `RUSTUP_TOOLCHAIN` to the user's `rustup default`
-  toolchain, `RUSTC=rustc`, and empty `RUSTC_WRAPPER` and
-  `RUSTC_WORKSPACE_WRAPPER` (each unless the user already set it), so a
-  project's `rust-toolchain.toml` or `.cargo/config.toml` cannot pick the
-  binaries cargo runs. cargo still reads the rest of the project's
-  configuration, so the flag is for trusted projects only.
+- The environment closes the known ways a project makes cargo metadata run
+  its code (cargo runs `rustc -vV` and `rustc --print=cfg` to learn about the
+  target):
+  - `RUSTC_WRAPPER` and `RUSTC_WORKSPACE_WRAPPER` are always set empty, so
+    neither the project's nor the user's wrappers run.
+  - `RUSTC=rustc` overrides `build.rustc` in `.cargo/config.toml`, unless the
+    user set `RUSTC`.
+  - `CARGO_ENCODED_RUSTFLAGS` is always set empty, which takes precedence over
+    every other rustflags source (`RUSTFLAGS`, `CARGO_BUILD_RUSTFLAGS`,
+    `build.rustflags`, `target.<triple>.rustflags`), so the project cannot
+    pass flags such as `-Zcodegen-backend=<lib>` (usable on stable through an
+    `[env] RUSTC_BOOTSTRAP`) to rustc.
+  - `RUSTUP_TOOLCHAIN` is set to the user's `rustup default` toolchain, unless
+    the user set it, so a `rust-toolchain.toml` cannot pick a `path`
+    toolchain or download one. If rustup is installed but has no default
+    toolchain, depwhy does not run cargo metadata and warns, falling back as
+    below. Without rustup, toolchain files are not read.
+- cargo still reads the rest of the project's configuration (for example
+  `[env]`, `[build] target`, `[source]` replacement), and depwhy cannot vet
+  all of it, so the flag is for trusted projects only.
 - Accurately discriminates Dev, Build, and Prod dependencies and discovers precise workspace members.
 - If `cargo` is missing, fails (for example Cargo.lock is out of date with
   Cargo.toml, or a registry dependency is not in the local cache) or times

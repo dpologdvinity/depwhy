@@ -174,10 +174,11 @@ downloaded and no `go.mod`, `go.sum` or `Cargo.lock` is changed. If the tool is
 missing or fails, for example because a module or crate is not in the local
 cache, depwhy warns and reads the file alone. **Use them only on projects you
 trust**: go and cargo read the project's own configuration. depwhy stops a
-`rust-toolchain.toml` or the `rustc`/wrapper settings of `.cargo/config.toml`
-from choosing which binaries run (by setting `RUSTUP_TOOLCHAIN` to your
-`rustup default`, `RUSTC=rustc` and empty `RUSTC_WRAPPER`), but cannot vet
-everything else cargo reads.
+`rust-toolchain.toml` or the `rustc`, wrapper and `rustflags` settings of
+`.cargo/config.toml` from choosing what runs (by setting `RUSTUP_TOOLCHAIN` to
+your `rustup default`, `RUSTC=rustc`, and empty `RUSTC_WRAPPER` and
+`CARGO_ENCODED_RUSTFLAGS`; with rustup but no default toolchain it skips
+`cargo metadata`), but cannot vet everything else cargo reads.
 
 ### Reading the output
 
