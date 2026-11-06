@@ -94,6 +94,7 @@ remove.results[].required_by[].root
 remove.results[].required_by[].version
 remove.results[].still_needed
 remove.schema
+remove.suggestions
 remove.warnings
 why.mode
 why.query

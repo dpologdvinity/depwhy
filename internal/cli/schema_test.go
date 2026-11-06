@@ -48,6 +48,7 @@ func TestJSONSchemaKeys(t *testing.T) {
 	mono := stageFixture(t, project("monorepo"))
 	for _, args := range [][]string{
 		{"-C", project("npm"), "--json", "zzz"},
+		{"-C", project("npm"), "--json", "--remove", "zzz"},
 		{"-C", project("npm"), "--json", "--online", "--remove", "a"},
 		{"-C", project("npm"), "--json", "--remove", "d"}, // not direct: required_by
 		{"-C", project("npm"), "--json", "--online", "--dupes"},
