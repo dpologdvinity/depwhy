@@ -1,0 +1,8 @@
+npm · package-lock.json
+Top 2 heaviest direct dependencies by exclusive size:
+   1. a@1.0.0                  ~3.0 KB   (freed: 2 packages)
+   2. b@1.0.0                  ~812 B    (freed: 2 packages)
+
+--- stderr
+
+--- exit=0

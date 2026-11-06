@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "mode": "remove",
+  "query": {
+    "name": "a",
+    "version": null
+  },
+  "results": [
+    {
+      "ecosystem": "npm",
+      "lockfile": "package-lock.json",
+      "package": {
+        "name": "a",
+        "version": "1.0.0",
+        "size_bytes": 1024
+      },
+      "direct": true,
+      "still_needed": false,
+      "freed_size_bytes": 3072,
+      "freed_unmeasured": 0,
+      "freed": [
+        {
+          "name": "a",
+          "version": "1.0.0",
+          "size_bytes": 1024
+        },
+        {
+          "name": "c",
+          "version": "1.0.0",
+          "size_bytes": 2048
+        }
+      ],
+      "kept": [
+        {
+          "name": "d",
+          "version": "1.0.0",
+          "size_bytes": 100,
+          "via": {
+            "name": "b",
+            "version": "1.0.0",
+            "size_bytes": 512
+          }
+        }
+      ],
+      "required_by": []
+    }
+  ],
+  "warnings": []
+}
+
+--- stderr
+
+--- exit=0
