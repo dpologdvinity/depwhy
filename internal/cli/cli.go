@@ -120,6 +120,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return usageErr(stderr, err.Error())
 	}
+	if o.completePackages {
+		// Called by the completion scripts with whatever the user typed so far,
+		// so the mode flags (--help and --version included, hence this comes
+		// first) and arguments are ignored. Only the lockfile selection counts,
+		// and nothing slow or networked runs on a Tab press.
+		o.online, o.goGraph, o.cargoMetadata = false, false, false
+		return execute(&o, stdout, stderr)
+	}
 	if help {
 		fmt.Fprint(stdout, usage+fs.FlagUsages()+notes)
 		return 0
@@ -128,13 +136,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		info, _ := debug.ReadBuildInfo()
 		fmt.Fprintf(stdout, "depwhy %s\n", resolveVersion(Version, info))
 		return 0
-	}
-	if o.completePackages {
-		// Called by the completion scripts with whatever the user typed so far,
-		// so the mode flags and arguments are ignored. Only the lockfile selection
-		// counts, and nothing slow or networked runs on a Tab press.
-		o.online, o.goGraph, o.cargoMetadata = false, false, false
-		return execute(&o, stdout, stderr)
 	}
 	if isCompletion(fs.Args()) {
 		if msg := writeCompletion(stdout, fs, fs.Arg(1)); msg != "" {

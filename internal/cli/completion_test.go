@@ -73,6 +73,14 @@ func TestCompletePackages(t *testing.T) {
 	if code, _, _ := run("--"+completeFlag, "-C", t.TempDir()); code != 2 {
 		t.Fatalf("no lockfile: code=%d, want 2", code)
 	}
+	// --help and --version typed before the cursor must not turn the listing into
+	// usage or version text.
+	for _, flag := range []string{"--help", "-h", "--version", "-V"} {
+		code, out, errs := run("--"+completeFlag, "-C", project("npm"), flag)
+		if code != 0 || errs != "" || out != "a\nb\nc\nd\n" {
+			t.Errorf("%s: code=%d out=%q stderr=%q", flag, code, out, errs)
+		}
+	}
 }
 
 // lookShell finds a shell for the completion tests. A missing shell skips the
