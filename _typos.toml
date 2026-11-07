@@ -1,0 +1,15 @@
+# typos config: https://github.com/crate-ci/typos
+[files]
+extend-exclude = [
+  "*.{gif,png,jpg,jpeg,webp,ico,svg,pdf,woff,woff2,ttf}",
+]
+
+[default.extend-words]
+# Loop variable "pn" = peer name in the yarn lockfile resolver.
+"pn" = "pn"
+# Deliberate near-miss strings in version comparison tests.
+"abd" = "abd"
+# Test fixture: certifi is a real PyPI package.
+"certifi" = "certifi"
+# Test fixture variable "mapp" (a fake app name).
+"mapp" = "mapp"
