@@ -1,0 +1,15 @@
+# Git hooks managed by lefthook (https://lefthook.dev).
+# Run `lefthook install` once after cloning to activate them.
+pre-commit:
+  parallel: true
+  commands:
+    gitleaks:
+      # Block commits that would add secrets (API keys, tokens, passwords).
+      run: gitleaks git --staged --no-banner --redact
+    gofmt:
+      glob: "*.go"
+      run: out=$(gofmt -l {staged_files}); test -z "$out" || { echo "gofmt needed:"; echo "$out"; exit 1; }
+    golangci-lint:
+      glob: "*.go"
+      # Only report issues introduced since the last commit.
+      run: golangci-lint run --new-from-rev=HEAD
