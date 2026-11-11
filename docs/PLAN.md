@@ -2,8 +2,7 @@
 
 Read `docs/SPEC.md` first. It defines all behavior, and section references (§)
 below point there. Do the tasks in order. Each one ends with a passing check and
-one commit. Commit messages use Conventional Commits. Don't commit `CLAUDE.md`,
-`AGENTS.md`, `.claude/`, or `docs/superpowers/` (they are listed in `.git/info/exclude`).
+one commit. Commit messages use Conventional Commits.
 
 Before each commit, run:
 ```sh

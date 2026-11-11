@@ -70,8 +70,10 @@ go test -coverprofile=/tmp/cover.out ./... && go tool cover -func=/tmp/cover.out
 Scopes in use: `cli`, `graph`, `lockfile`, `render`. Example:
 `fix(graph): stop the kept walk at workspace roots`.
 
-Never commit secrets, `.env` files, or agent/editor tooling directories. If a
-tool you use creates local files, add them to `.git/info/exclude`.
+Never commit secrets, `.env` files, or personal tool state. Shared agent config
+(`AGENTS.md`, `.claude/settings.json`, `.codex/`, `.agents/`) is committed; see
+[AGENTS.md](AGENTS.md). If a tool you use creates local files, add them to
+`.git/info/exclude`.
 
 ## Code conventions
 
