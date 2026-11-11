@@ -1,6 +1,11 @@
 /depwhy
 /dist/
-.env
+.env*
+!.env.example
+*.local.*
+*.pem
+*.key
+credentials*.json
 
 # npm wrapper build output
 /npm/vendor/
@@ -8,3 +13,9 @@
 /npm/*.tgz
 /npm/LICENSE
 /npm/checksums.txt
+
+# Agent scratch and session state
+.superpowers/
+.worktrees/
+.playwright-mcp/
+HANDOFF.md
